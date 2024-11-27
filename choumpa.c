@@ -164,16 +164,16 @@ int main(int argc, char *argv[]) {
 
 		/* 
 		distance에 따른 led 출력 여부 결정
-		거리가 3cm ~ 7cm 일 때만 led 점등
+		거리가 5cm ~ 15cm 일 때만 led 점등
 		*/
-		if (distance < 3.00) {
-			printf("Please put it farther");
+		if (distance < 5.00) {
+			printf("Please put it farther\n");
 			GPIOWrite(POUT2, 0);
-		} else if (distance > 7.00) {
-			printf("Please put it closer");
+		} else if (distance > 15.00) {
+			printf("Please put it closer\n");
 			GPIOWrite(POUT2, 0);
 		} else {
-			printf("Proper distance");
+			printf("Proper distance\n");
 			GPIOWrite(POUT2, 1);
 		}
 		
