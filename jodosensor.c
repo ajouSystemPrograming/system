@@ -17,9 +17,9 @@
 #define VALUE_MAX 256
 #define DIRECTION_MAX 256
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define BUFFER_MAX 3
 
 static int GPIOExport(int pin) {
-#define BUFFER_MAX 3
 	char buffer[BUFFER_MAX];
 	ssize_t bytes_written;
 	int fd;
@@ -168,6 +168,14 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
+	if (GPIOExport(POUT) == -1) {
+    	return 1;
+	}
+
+	if (GPIODirection(POUT, OUT) == -1) {
+    	return 2;
+	}
+
 	int t0;
 	while (1) {
 		printf("value: %d\n", t0=readadc(fd, 0));
@@ -177,4 +185,10 @@ int main(int argc, char **argv) {
 	    GPIOWrite(POUT, 1);
 	    usleep(10000);
 	}
+	
+	if (GPIOUnexport(POUT) == -1) {
+    	return 4;
+	}
+
+
 }
