@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,6 +182,7 @@ int main(int argc, char **argv) {
 		printf("value: %d\n", t0=readadc(fd, 0));
     if(t0<500) // t0은 0 부터 1023 사이 값이라는듯?
 	    GPIOWrite(POUT, 0);
+		usleep(10000);
     else
 	    GPIOWrite(POUT, 1);
 	    usleep(10000);
