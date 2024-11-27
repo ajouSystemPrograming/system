@@ -1,15 +1,15 @@
-#include <linux/videodev2.h> // v4l2 library header
-
-#include <fcntl.h>
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
-#include <unistd.h>
-#include <errno.h>
+#include <linux/videodev2.h> // v4l2 library header
 
 // camera device file path
 #define CAMERA "/dev/video0"
@@ -111,10 +111,10 @@ int main(void) {
 
 	FILE *image = fopen(IMAGE, "wb");
 	if(!image) {
-		fprintf("Failed to write the image file!\n");
+		fprintf(stderr, "Failed to write the image file!\n");
 		exit(-1);
 	}
-	fwrite(buffer, buffer_length, 1, image);
+	fwrite(buffer, *buffer_length, 1, image);
 	fclose(image);
 
 	if(-1 == xioctl(fd, VIDIOC_STREAMOFF, &buf.type)) {
