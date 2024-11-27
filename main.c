@@ -238,20 +238,23 @@ int main(int argc, char* argv[]) {
     while(repeat-->0)
     {
         t0 = ButtonInput();
-        for(i0 = 0; i0 < 4; i0++)
-            if((1<<i0)&t0!=0){
-                r += move[i0][0];
-                c += move[i0][1];
-            }
-        if(r<1)
-            r = 1;
-        else if(r>11)
-            r = 11;
-        if(c<1)
-            c = 1;
-        else if(c>15)
-            c = 15;
-        printCube(r, c);
+        if(t0!=0)
+        {
+            for(i0 = 0; i0 < 4; i0++)
+                if((1<<i0)&t0!=0){
+                    r += move[i0][0];
+                    c += move[i0][1];
+                }
+            if(r<1)
+                r = 1;
+            else if(r>11)
+                r = 11;
+            if(c<1)
+                c = 1;
+            else if(c>15)
+                c = 15;
+            printCube(r, c);
+        }
         usleep(1000 * 1000);//1s
     }
 
