@@ -76,7 +76,7 @@ int main(void) {
 	struct v4l2_buffer buf = {0};
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
-	buf.index = bufferindex;
+	buf.index = 0; // bufferindex;
 	if(-1 == xioctl(fd, VIDIOC_QUERYBUF, &buf))
 	{
 		perror("Querying Buffer");
@@ -120,6 +120,7 @@ int main(void) {
 	if(-1 == xioctl(fd, VIDIOC_STREAMOFF, &buf.type)) {
 		fprintf(stderr, "Failed to stop streaming!\n");
 		exit(-1);
-		return 0;
 	}
 
+	return 0;
+}
