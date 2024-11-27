@@ -33,6 +33,8 @@ char cube[13][17]={
 //==========================================================test
 
 //
+#define SPIN 14
+#define SOUT 15
 #define UPPIN 17
 #define UPOUT 27
 #define DOWNPIN 20
@@ -166,6 +168,12 @@ static int GPIOWrite(int pin, int value) {
 //int len = 8;
 //int usePinNum[100] = {UPIN,UPOUT,DOWNIN,DOWNOUT,LEFTIN,LEFTOUT,RIGHTIN,RIGHTOUT};
 static int init(){
+    if (GPIOExport(SOUT) == -1 || GPIOExport(SPIN)) {
+        return 1;
+    }
+    if (GPIODirection(SOUT, OUT) == -1 || GPIODirection(SPIN, IN) == -1) {
+        return 2;
+    }
     if (GPIOExport(UPOUT) == -1 || GPIOExport(UPPIN)) {
         return 1;
     }
@@ -195,6 +203,9 @@ static int init(){
     return 0;
 }
 static int end(){
+    if (GPIOUnexport(SOUT) == -1 || GPIOUnexport(SPIN) == -1) {
+        return 4;
+    }
     if (GPIOUnexport(UPOUT) == -1 || GPIOUnexport(UPPIN) == -1) {
         return 4;
     }
@@ -217,14 +228,27 @@ static int ButtonInput(){
     int light = 0;
     
     int buttonState = 0;
-    if (GPIOWrite(UPOUT2, 1) == -1) {
+    if (GPIOWrite(UPOUT, 1) == -1) {
         return 3;
     }
     buttonState += GPIORead(UPIN);
+    if (GPIOWrite(DOWNOUT, 1) == -1) {
+        return 3;
+    }
     buttonState += GPIORead(DOWNIN)<<1;
-    buttonState += GPIORead(LEFTIN)<<2;
+    if (GPIOWrite(LEFTOUT, 1) == -1) {
+        return 3;
+    }
+    buttonState += GPIORead(RIGHTIN)<<2;
+    if (GPIOWrite(UPOUT, 1) == -1) {
+        return 3;
+    }
     buttonState += GPIORead(RIGHTIN)<<3;
-    printf("BUTTONSTATE: U:%d D:%d L:%d R:%d\n", buttonState,buttonState&(1),buttonState&(1<<2),buttonState&(1<<3));
+    if (GPIOWrite(SOUT, 1) == -1) {
+        return 3;
+    }
+    buttonState += GPIORead(SIN)<<4;
+    printf("BUTTONSTATE: U:%d D:%d L:%d R:%d SELECT:%d\n", (buttonState,buttonState&(1<<1))>>1,(buttonState&(1<<2))>>2,(buttonState&(1<<3))>>3,(buttonState&(1<<4))>>4);
     return buttonState;
 }
 
@@ -238,21 +262,19 @@ int main(int argc, char* argv[]) {
     while(repeat-->0)
     {
         t0 = ButtonInput();
-        if(t0!=0)
+        if(t0&1<<3)
+        {
+
+        }
+        else if(t0)
         {
             for(i0 = 0; i0 < 4; i0++)
-                if((1<<i0)&t0!=0){
+                if((1<<i0)&t0){
                     r += move[i0][0];
                     c += move[i0][1];
                 }
-            if(r<1)
-                r = 1;
-            else if(r>11)
-                r = 11;
-            if(c<1)
-                c = 1;
-            else if(c>15)
-                c = 15;
+            if(r<1) r = 1; else if(r>11) r = 11;
+            if(c<1) c = 1; else if(c>15) c = 15;
             printCube(r, c);
         }
         usleep(1000 * 1000);//1s
