@@ -4,9 +4,10 @@
 
 int main() {
     int width, height, channels;
-    unsigned char *image_data = stbi_load("example_red.png", &width, &height, &channels, 0);
+    unsigned char *image_data = stbi_load("capture.jpg", &width, &height, &channels, 0);
+
     if (!image_data) {
-        printf("Failed to load image\n");
+        printf("Failed to load image!\n");
         return 1;
     }
 
