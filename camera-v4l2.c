@@ -23,31 +23,29 @@
 
 uint8_t *buffer;
 
-static int xioctl(int fd, int request, void *arg)
-{
-	int r;
-	do r = ioctl (fd, request, arg);
-	while (-1 == r && EINTR == errno);
-	return r;
-}
-
 int main(void) {
+	// step 1: open camera device
 	int fd;
 	fd = open(CAMERA, O_RDWR);
+	
 	if (fd == -1)
 	{
 		// couldn't find capture device
-		fprintf(stderr, "Failed to open camera device!");
+		fprintf(stderr, "Failed to open camera device!\n");
 		return 1;
 	}
 
+
+	// step 2: capability check
 	struct v4l2_capability caps = {0};
-	if (-1 == xioctl(fd, VIDIOC_QUERYCAP, &caps))
+
+	if (ioctl(fd, VIDIOC_QUERYCAP, &caps) == -1)
 	{
-		perror("Querying Capabilites");
-		return 2;
+		fprintf(stderr, "Failed to query capabilities!\n");
+		return 1;
 	}
 
+	// step 3: set formats
 	struct v4l2_format fmt = {0};
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width = WIDTH;
@@ -55,67 +53,83 @@ int main(void) {
 	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG;
 	fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
-	if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
+	if (ioctl(fd, VIDIOC_S_FMT, &fmt) == -1)
 	{
-		perror("Setting Pixel Format");
+		fprintf(stderr, "Failed to set media formats!\n");
 		return 1;
 	}
 
+
+	// step 4: request buffers
 	struct v4l2_requestbuffers req = {0};
 	req.count = 1;
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_MMAP;
 
-	if (-1 == xioctl(fd, VIDIOC_REQBUFS, &req))
+	if (ioctl(fd, VIDIOC_REQBUFS, &req) == -1)
 	{
-		perror("Requesting Buffer");
+		fprintf(stderr, "Failed to request buffers!\n");
 		return 1;
 	}
 
+	// step 5: query & queue buffers
 	struct v4l2_buffer buf = {0};
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = 0; // bufferindex;
-	if(-1 == xioctl(fd, VIDIOC_QUERYBUF, &buf))
+
+	if(ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1)
 	{
-		perror("Querying Buffer");
+		fprintf(stderr, "Failed to query buffers!\n");
 		return 1;
 	}
 
 	buffer = mmap (NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf.m.offset);
-	if(-1 == xioctl(fd, VIDIOC_STREAMON, &buf.type))
-	{
-		perror("Start Capture");
+
+	if(ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
+		fprintf(stderr, "Failed to queue buffers!\n");
 		return 1;
 	}
 
+
+	// step 6: get ready for capture
+	if(ioctl(fd, VIDIOC_STREAMON, &buf.type) == -1)
+	{
+		fprintf(stderr, "Failed to start capture!\n");
+		return 1;
+	}
+
+	// step 7: capture the frame
 	fd_set fds;
 	FD_ZERO(&fds);
 	FD_SET(fd, &fds);
 	struct timeval tv = {0};
 	tv.tv_sec = 2;
+
 	int r = select(fd+1, &fds, NULL, NULL, &tv);
-	if(-1 == r)
+	
+	if(r == -1)
 	{
-		perror("Waiting for Frame");
+		fprintf(stderr, "Failed to wait for frame!\n");
 		return 1;
 	}
 
-	if(-1 == xioctl(fd, VIDIOC_DQBUF, &buf))
+
+	// step 8: deque the buffer
+	if(ioctl(fd, VIDIOC_DQBUF, &buf) == -1)
 	{
-		perror("Retrieving Frame");
+		fprintf(stderr, "Failed to retrieve captured frame!\n");
 		return 1;
 	}
 
-	FILE *image = fopen(IMAGE, "wb");
-	if(!image) {
-		fprintf(stderr, "Failed to write the image file!\n");
-		exit(-1);
-	}
-	fwrite(buffer, buf.length, 1, image);
-	fclose(image);
 
-	if(-1 == xioctl(fd, VIDIOC_STREAMOFF, &buf.type)) {
+	// step 9: save the image file
+	int image = open("output.jpg", O_RDWR | O_CREAT, 0666);
+	write(image, buffer[buf.index], buf.length);
+
+
+	// step 10: 
+	if(ioctl(fd, VIDIOC_STREAMOFF, &buf.type) == -1) {
 		fprintf(stderr, "Failed to stop streaming!\n");
 		exit(-1);
 	}
