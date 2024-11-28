@@ -21,8 +21,6 @@
 #define WIDTH 640
 #define HEIGHT 480
 
-uint8_t *buffer;
-
 int main(void) {
 	// step 1: open camera device
 	int fd;
@@ -84,7 +82,7 @@ int main(void) {
 		return 1;
 	}
 
-	buffer = mmap (NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf.m.offset);
+	void *buffer = mmap (NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf.m.offset);
 
 	if(ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
 		fprintf(stderr, "Failed to queue buffers!\n");
@@ -125,7 +123,7 @@ int main(void) {
 
 	// step 9: save the image file
 	int image = open("output.jpg", O_RDWR | O_CREAT, 0666);
-	write(image, (void*) buffer[buf.index], buf.length);
+	write(image, buffer, buf.length);
 
 
 	// step 10: 
