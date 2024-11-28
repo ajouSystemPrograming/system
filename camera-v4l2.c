@@ -18,11 +18,10 @@
 #define IMAGE "capture.jpg"
 
 // image size (2592x1944 is maximum)
-#define WIDTH 2592
-#define HEIGHT 1944
+#define WIDTH 640
+#define HEIGHT 480
 
 uint8_t *buffer;
-uint8_t *buffer_length;
 
 static int xioctl(int fd, int request, void *arg)
 {
@@ -53,7 +52,7 @@ int main(void) {
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width = WIDTH;
 	fmt.fmt.pix.height = HEIGHT;
-	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG;
 	fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
 	if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
@@ -83,7 +82,6 @@ int main(void) {
 		return 1;
 	}
 
-	*buffer_length = buf.length;
 	buffer = mmap (NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf.m.offset);
 	if(-1 == xioctl(fd, VIDIOC_STREAMON, &buf.type))
 	{
@@ -114,7 +112,7 @@ int main(void) {
 		fprintf(stderr, "Failed to write the image file!\n");
 		exit(-1);
 	}
-	fwrite(buffer, *buffer_length, 1, image);
+	fwrite(buffer, buf.length, 1, image);
 	fclose(image);
 
 	if(-1 == xioctl(fd, VIDIOC_STREAMOFF, &buf.type)) {
