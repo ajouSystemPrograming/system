@@ -121,8 +121,10 @@ int main(int argc, char *argv[]) {
 	printf("Connection established\n");
 
 	while (1) {
-		str_len = read(sock, msg, sizeof(msg));
-		if (str_len == -1) error_handling("read() error");
+		//str_len = read(sock, msg, sizeof(msg));
+		//if (str_len == -1) error_handling("read() error");
+		write(sock, msg, sizeof(msg));
+
 
 		printf("Receive message from Server : %s\n", msg);
 		if (strncmp(on, msg, 1) == 0)
