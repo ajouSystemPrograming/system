@@ -125,7 +125,7 @@ int main(void) {
 
 	// step 9: save the image file
 	int image = open("output.jpg", O_RDWR | O_CREAT, 0666);
-	write(image, buffer[buf.index], buf.length);
+	write(image, (void*) buffer[buf.index], buf.length);
 
 
 	// step 10: 
