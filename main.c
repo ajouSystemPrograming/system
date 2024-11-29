@@ -1,3 +1,4 @@
+//2024.11.29
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,15 +33,15 @@ static char cube[13][17]={
 };
 //==========================================================test
 
-#define SPIN 17
+#define SIN 17
 #define SOUT 27
-#define UPPIN 19
+#define UPIN 19
 #define UPOUT 26
-#define DOWNPIN 20
+#define DOWNIN 20
 #define DOWNOUT 21
-#define LEFTPIN 6
+#define LEFTIN 6
 #define LEFTOUT 13
-#define RIGHTPIN 2
+#define RIGHTIN 2
 #define RIGHTOUT 3
 #define BUFFER_MAX 5000000
 char* tochar = "RGBYOW* E";
@@ -196,39 +197,39 @@ static int GPIOWrite(int pin, int value) {
     return (0);
 }
 static int init(){
-    if (GPIOExport(SOUT) == -1 || GPIOExport(SPIN)) {
+    if (GPIOExport(SOUT) == -1 || GPIOExport(SIN)) {
         return 1;
     }
     usleep(100000);
-    if (GPIODirection(SOUT, OUT) == -1 || GPIODirection(SPIN, IN) == -1) {
+    if (GPIODirection(SOUT, OUT) == -1 || GPIODirection(SIN, IN) == -1) {
         return 2;
     }
-    if (GPIOExport(UPOUT) == -1 || GPIOExport(UPPIN)) {
+    if (GPIOExport(UPOUT) == -1 || GPIOExport(UPIN)) {
         return 1;
     }
     usleep(100000);
-    if (GPIODirection(UPOUT, OUT) == -1 || GPIODirection(UPPIN, IN) == -1) {
+    if (GPIODirection(UPOUT, OUT) == -1 || GPIODirection(UPIN, IN) == -1) {
         return 2;
     }
-    if (GPIOExport(DOWNOUT) == -1 || GPIOExport(DOWNPIN)) {
+    if (GPIOExport(DOWNOUT) == -1 || GPIOExport(DOWNIN)) {
         return 1;
     }
     usleep(100000);
-    if (GPIODirection(DOWNOUT, OUT) == -1 || GPIODirection(DOWNPIN, IN) == -1) {
+    if (GPIODirection(DOWNOUT, OUT) == -1 || GPIODirection(DOWNIN, IN) == -1) {
         return 2;
     }
-    if (GPIOExport(LEFTOUT) == -1 || GPIOExport(LEFTPIN)) {
+    if (GPIOExport(LEFTOUT) == -1 || GPIOExport(LEFTIN)) {
         return 1;
     }
     usleep(100000);
-    if (GPIODirection(LEFTOUT, OUT) == -1 || GPIODirection(LEFTPIN, IN) == -1) {
+    if (GPIODirection(LEFTOUT, OUT) == -1 || GPIODirection(LEFTIN, IN) == -1) {
         return 2;
     }
-    if (GPIOExport(RIGHTOUT) == -1 || GPIOExport(RIGHTPIN)) {
+    if (GPIOExport(RIGHTOUT) == -1 || GPIOExport(RIGHTIN)) {
         return 1;
     }
     usleep(100000);
-    if (GPIODirection(RIGHTOUT, OUT) == -1 || GPIODirection(RIGHTPIN, IN) == -1) {
+    if (GPIODirection(RIGHTOUT, OUT) == -1 || GPIODirection(RIGHTIN, IN) == -1) {
         return 2;
     }
     //
@@ -241,19 +242,19 @@ static int init(){
     return 0;
 }
 static int end(){
-    if (GPIOUnexport(SOUT) == -1 || GPIOUnexport(SPIN) == -1) {
+    if (GPIOUnexport(SOUT) == -1 || GPIOUnexport(SIN) == -1) {
         return 4;
     }
-    if (GPIOUnexport(UPOUT) == -1 || GPIOUnexport(UPPIN) == -1) {
+    if (GPIOUnexport(UPOUT) == -1 || GPIOUnexport(UPIN) == -1) {
         return 4;
     }
-    if (GPIOUnexport(DOWNOUT) == -1 || GPIOUnexport(DOWNPIN) == -1) {
+    if (GPIOUnexport(DOWNOUT) == -1 || GPIOUnexport(DOWNIN) == -1) {
         return 4;
     }
-    if (GPIOUnexport(LEFTOUT) == -1 || GPIOUnexport(LEFTPIN) == -1) {
+    if (GPIOUnexport(LEFTOUT) == -1 || GPIOUnexport(LEFTIN) == -1) {
         return 4;
     }
-    if (GPIOUnexport(RIGHTOUT) == -1 || GPIOUnexport(RIGHTPIN) == -1) {
+    if (GPIOUnexport(RIGHTOUT) == -1 || GPIOUnexport(RIGHTIN) == -1) {
         return 4;
     }
 
@@ -265,26 +266,26 @@ static int ButtonInput(){
     if (GPIOWrite(UPOUT, 1) == -1) {
         return 3;
     }
-    buttonState += (1^GPIORead(UPPIN));
+    buttonState += (1^GPIORead(UPIN));
     
     if (GPIOWrite(DOWNOUT, 1) == -1) {
         return 3;
     }
-    buttonState += (1^GPIORead(DOWNPIN))<<1;
+    buttonState += (1^GPIORead(DOWNIN))<<1;
     
     if (GPIOWrite(LEFTOUT, 1) == -1) {
         return 3;
     }
-    buttonState += (1^GPIORead(LEFTPIN))<<2;
+    buttonState += (1^GPIORead(LEFTIN))<<2;
     
     if (GPIOWrite(RIGHTOUT, 1) == -1) {
         return 3;
     }
-    buttonState += (1^GPIORead(RIGHTPIN))<<3;
+    buttonState += (1^GPIORead(RIGHTIN))<<3;
     if (GPIOWrite(SOUT, 1) == -1) {
         return 3;
     }
-    buttonState += (1^GPIORead(SPIN))<<4;
+    buttonState += (1^GPIORead(SIN))<<4;
     return buttonState;
 }
 
@@ -309,7 +310,7 @@ static void decode(long long l0)
 }
 
 int main() {
-    int t0, pre, r = 5, c = 1;
+    int t0, pre, r = 5, c = 1, preState=0, buttonState=0;
     int i0;
     long long l0;
     if(init())
@@ -321,29 +322,33 @@ int main() {
     printCube(5,1);
     while(1)//change cube using button
     {
-        t0 = ButtonInput();
-        if(t0&(1<<4))
+        buttonState = ButtonInput();
+        int print = 0;
+        if(!(preState & (1 << 4)) && buttonState & (1 << 4))
         {
             if(cube[r][c]<6)
             {
                 cube[r][c] = (cube[r][c]+1) % 6;
-                printCube(r, c);
+                print = 1;
             }
             else if(cube[r][c]==8)
                 break;
         }
-        else if(t0)
+        else
         {
             for(i0 = 0; i0 < 4; i0++)
-                if((1<<i0)&t0){
+                if(!(preState & (1 << i0)) && buttonState & (1 << i0)){
                     r += move[i0][0]<<1;
                     c += move[i0][1]<<1;
+                    print = 1;
                 }
             if(r<1) r = 1; else if(r>11) r = 11;
             if(c<1) c = 1; else if(c>15) c = 15;
-            printCube(r, c);
         }
-        usleep(1000*1000);//1s
+        if(print)
+            printCube(r, c);
+        preState = buttonState;
+        usleep(500*100);
     }
     outputBuffer[outputTail++] = encode();
     //qnstkscjfl
