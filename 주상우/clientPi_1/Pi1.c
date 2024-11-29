@@ -221,7 +221,7 @@ int led_breathing() {
 }
 //큐브를 돌린 결과를 반환해주는 함수
 long long X(long long l0){
-    long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;
+    long long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;
     l0-=l1*mask[5]; l0-=l2*mask[7];
     l0+=(l3=(l0/mask[17])%6)*mask[5]; l0+=(l4=(l0/mask[19])%6)*mask[7];
     l0-=l3*mask[17]; l0-=l4*mask[19];
@@ -239,7 +239,7 @@ long long X(long long l0){
     return l0;
 }
 long long Y(long long l0){
-    long l1 = (l0/mask[0])%6, l2 = (l0/mask[1])%6, l3, l4;
+    long long l1 = (l0/mask[0])%6, l2 = (l0/mask[1])%6, l3, l4;
     l0-=l1*mask[0]; l0-=l2*mask[1];
     l0+=(l3=(l0/mask[12])%6)*mask[0]; l0+=(l4=(l0/mask[13])%6)*mask[1];
     l0-=l3*mask[12]; l0-=l4*mask[13];
@@ -257,7 +257,7 @@ long long Y(long long l0){
     return l0;
 }
 long long Z(long long l0){
-    long l1 = (l0/mask[1])%6, l2 = (l0/mask[3])%6, l3, l4;
+    long long l1 = (l0/mask[1])%6, l2 = (l0/mask[3])%6, l3, l4;
     l0-=l1*mask[1]; l0-=l2*mask[3];
     l0+=(l3=(l0/mask[19])%6)*mask[1]; l0+=(l4=(l0/mask[18])%6)*mask[3];
     l0-=l3*mask[19]; l0-=l4*mask[18];
@@ -281,13 +281,18 @@ void *cal() {
     {
         if(inputHead < inputTail)
         {
+			printf("calculating function is well executing.\n");
             l0 = inputBuffer[inputHead++];
             outputBuffer[outputTail][0] = l0;
+            //printf("
             outputBuffer[outputTail++][1] = X(l0);
+            printf("%lld, %lld\n", l0, X(l0));
             outputBuffer[outputTail][0] = l0;
             outputBuffer[outputTail++][1] = Y(l0);
+            
             outputBuffer[outputTail][0] = l0;
             outputBuffer[outputTail++][1] = Z(l0);
+            
 			usleep(500 * 100);
         }
     }
@@ -313,7 +318,8 @@ void *receiving_thread(void *data) {
 		if (msg1) { // 받은 값이 초기값인 0 이라면 실행하지 않음.
 			printf("Receive message from Server : %lld\n",  msg1); 
 			// 2.
-			inputBuffer[inputHead++] = msg1;
+			inputBuffer[inputTail++] = msg1;
+			printf("current inputHead and inputTail : %d, %d\n", inputHead, inputTail);
 		} else {
 			printf("Input buffer is Empty!\n");
 		}
@@ -358,13 +364,19 @@ void *sending_thread(void *data) {
 	while (1) {
 		if (outputHead < outputTail) { // 아웃풋 버퍼가 비어있지 않을 때만 실행
 			// 1.
-			msg2[0] = outputBuffer[outputTail][0];
-    		msg2[1] = outputBuffer[outputTail++][1];
+			msg2[0] = outputBuffer[outputHead][0];
+    		msg2[1] = outputBuffer[outputHead][1];
+    		printf("current outputHead and outputTail : %d, %d\n", outputHead, outputTail);
+    		printf("msg2[0] and [1] : %lld %lld\n", msg2[0], msg2[1]);
+    		outputHead++;
 			// 2.
-			if (-1 == write(sock, msg2, sizeof(msg2)))
-				error_handling("msg2 write() error");
-			printf("Sending message to Server : [%lld, %lld]", msg2[0], msg2[1]);
-			usleep(500 * 1000);
+			//if (-1 == write(sock, msg2, sizeof(msg2)))
+			//	error_handling("msg2 write() error");
+			inputBuffer[inputTail] = msg2[1];
+			printf("inputTail : %d\n", inputTail);
+			inputTail++;
+			
+			printf("Sending message to Server : %lld, %lld\n", msg2[0], msg2[1]);
 		} else {
 			printf("Output buffer is Empty!\n");
 		}
@@ -377,6 +389,9 @@ void *sending_thread(void *data) {
 }
 
 int main(int argc, char *argv[]) {
+	mask[0]=1;
+	for(int i = 1; i < 24; i++)
+		mask[i] = mask[i-1]*6;
 	//led_breathing();
 	
 	// 소켓 연결을 위한 코드들
