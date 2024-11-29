@@ -1,10 +1,13 @@
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
+#include <time.h>
 
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
@@ -18,8 +21,20 @@
 #define POUT 23 // 초음파센서
 #define PIN 24 // 초음파센서
 #define POUT2 16 // LED
+//#define POUT 21 // 버튼
+//#define PIN 20 // 버튼
+int sock;
+int msg[2];
+int prev_state = 1;
+int state = 1;
+int str_len;
 
-static int GPIOExport(int pin) 
+void error_handling(char *message) {
+	fputs(message, stderr);
+	fputc('\n', stderr);
+	exit(1);
+}
+static int GPIOExport(int pin) {
 	char buffer[BUFFER_MAX];
 	ssize_t bytes_written;
 	int fd;
@@ -94,6 +109,7 @@ static int GPIORead(int pin) {
 	return (atoi(value_str));
 }
 static int GPIOWrite(int pin, int value) {
+	
 	static const char s_values_str[] = "01";
 	char path[VALUE_MAX];
 	int fd;
@@ -113,10 +129,8 @@ static int GPIOWrite(int pin, int value) {
 		return (0);
 	}
 }
-int main(int argc, char *argv[]) {
-	int repeat = 9;
-	clock_t start_t, end_t;
-	double time;
+
+int led_breathing() {
 
 	// Enable GPIO pins
 	if (-1 == GPIOExport(POUT) || -1 == GPIOExport(PIN) || -1 == GPIOExport(POUT2)) {
@@ -136,8 +150,11 @@ int main(int argc, char *argv[]) {
 	GPIOWrite(POUT, 0);
 	usleep(10000);
 	// start
+	clock_t start_t, end_t;
+	double time;
 	double distance = 0;
-	do {
+
+	while(1) {
 		if (-1 == GPIOWrite(POUT, 1)) {
 			printf("gpio write/trigger err\n");
 			return (3);
@@ -176,12 +193,21 @@ int main(int argc, char *argv[]) {
 		
 
 		usleep(2000000);
-	} while (repeat--);
+	}
 
 	// Disable GPIO pins
 	if (-1 == GPIOUnexport(POUT) || -1 == GPIOUnexport(PIN) || 1 == GPIOUnexport(POUT2)) return (4);
 
 	printf("complete\n");
+}
+
+int main(int argc, char *argv[]) {
+	
+	led_breathing();
+	
+	
+
+
 
 	return (0);
 }
