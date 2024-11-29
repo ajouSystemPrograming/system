@@ -93,7 +93,7 @@ void *pull(void *arg) {
 		else {
 			task = read(sock, &task, sizeof(long long));
 			enqueue(task, inbuf, &in_head, &in_tail, INBUF_MAX);
-			fprintf(stdout, "pulling from server\n");
+			fprintf(stdout, "pulling from server: %lld \n", task);
 		}
 
 		usleep(1000000);
@@ -113,7 +113,7 @@ void *push(void *arg) {
 			arr[0] = dequeue(outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			arr[1] = dequeue(outbuf, &out_head, &out_tail, OUTBUF_MAX);
 			write(sock, &arr, 2 * sizeof(long long));
-			fprintf(stdout, "pushing to server\n");
+			fprintf(stdout, "pushing to server: %lld, %lld \n", arr[0], arr[1]);
 		}
 
 		usleep(1000000);
@@ -211,6 +211,7 @@ void *calculate(void *arg) {
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Z(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			usleep(1000000);
 		}
 		else {
 			fprintf(stdout, "queue not ready: waiting...\n");
