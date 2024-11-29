@@ -18,7 +18,7 @@
 long long inbuf[INBUF_MAX];
 
 long long outbuf_parents[OUTBUF_MAX];
-long long outbuf[OUTBUF_MAX]
+long long outbuf[OUTBUF_MAX];
 
 int in_head = 0, in_tail = 0;
 int outp_head = 0, outp_tail = 0;
@@ -106,13 +106,13 @@ void *push(void *arg) {
 	long long arr[2];
 
 	while(1) {
-		if(queue_is_empty(outbuf_parent, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail)) {
+		if(queue_is_empty(outbuf_parents, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail)) {
 			fprintf(stdout, "empty out queue: waiting...\n");
 		}
 		else {
-			arr[0] = dequeue(outbuf_parent, &outp_head, &outp_tail, OUTBUF_MAX);
+			arr[0] = dequeue(outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			arr[1] = dequeue(outbuf, &out_head, &out_tail, OUTBUF_MAX);
-			write(sock, &arr, sizeof(long long * 2));
+			write(sock, &arr, 2 * sizeof(long long));
 			fprintf(stdout, "pushing to server\n");
 		}
 
@@ -200,16 +200,16 @@ void *calculate(void *arg) {
 	long long l0;
 
 	while(!fin) {
-		if(!queue_is_empty(inbuf, &inbuf_head, &inbuf_tail)) {
+		if(!queue_is_empty(inbuf, &in_head, &in_tail)) {
 			l0 = dequeue(inbuf, &in_head, &in_tail, INBUF_MAX);
 
-			enqueue(l0, outbuf_parent, &outp_head, &outp_tail, OUTBUF_MAX);
+			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(X(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
 
-			enqueue(l0, outbuf_parent, &outp_head, &outp_tail, OUTBUF_MAX);
+			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Y(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
 
-			enqueue(l0, outbuf_parent, &outp_head, &outp_tail, OUTBUF_MAX);
+			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Z(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
 		}
 		else {
