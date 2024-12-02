@@ -95,7 +95,7 @@ void *pull(void *arg) {
 			fprintf(stdout, "full in queue: waiting...\n");
 		}
 		else {
-			task = read(sock, &task, sizeof(long long));
+			read(sock, &task, sizeof(long long));
 			enqueue(task, inbuf, &in_head, &in_tail, INBUF_MAX);
 			fprintf(stdout, "(inbuf) pulling from server: %lld \n", task);
 			print_queue(&in_head, &in_tail);
