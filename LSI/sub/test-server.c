@@ -8,9 +8,59 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define BUFMAX 1000
+#define BUF_MAX 1000000
 
-int i = 0;
+long long tasks[BUF_MAX];
+int head = 0, tail = 0;
+
+int queue_is_empty(long long *buffer, int *head, int *tail) {
+	if(*head == *tail) {
+		return 1;
+	}
+
+	return 0;
+}
+
+int queue_is_full(long long *buffer, int *tail, int size) {
+	if(*tail >= size) {
+		return 1;
+	}
+
+	return 0;
+}
+
+void print_queue(int *head, int *tail) {
+        printf("head: %d, tail: %d\n", *head, *tail);
+}
+
+void enqueue(long long task, long long *buffer, int *head, int *tail, int size) {
+	if(queue_is_full(buffer, tail, size)) {
+		fprintf(stderr, "queue is full!\n");
+
+		return;
+	}
+
+	buffer[*tail] = task;
+	(*tail)++;
+
+	return;
+}
+
+long long dequeue(long long *buffer, int *head, int *tail, int size) {
+	long long ret;
+
+	if(queue_is_empty(buffer, head, tail)) {
+		fprintf(stderr, "queue is empty!\n");
+
+		return -1;
+	}
+
+	ret = buffer[*head];
+	(*head)++;
+
+	return ret;
+}
+
 
 void error_handling(char *message) {
 	fputs(message, stderr);
@@ -49,19 +99,31 @@ int main(int argc, char *argv[]) {
 
 	printf("Connection established\n");
 
-	long long tx = 0;
+	long long tx;
 	long long rx[2];
+	
+	long long init = 4271069981394162510;
+	enqueue(init, tasks, &head, &tail, BUF_MAX);
+	print_queue(&head, &tail);
+	printf("\n\n");
 
 	while (1) {
-	        write(clnt_sock, &tx, sizeof(long long));
-		tx++;
-		usleep(1000000);
-		
-		read(clnt_sock, &rx, 2 * sizeof(long long));
-		usleep(1000000);
+		if(!queue_is_empty(tasks, &head, &tail)) {
+			tx = dequeue(tasks, &head, &tail, BUF_MAX); 
+			write(clnt_sock, &tx, sizeof(long long));
+			printf("Server Sending: %lld", tx);
+			print_queue(&head, &tail);
+			usleep(300000);
+		}
 
-		fprintf(stdout, "parent: %lld \n current: %lld \n\n", rx[0], rx[1]);
-		usleep(1000000);
+		if(!queue_is_full(tasks, &tail, BUF_MAX)) {
+			read(clnt_sock, &rx, 2 * sizeof(long long));
+			enqueue(rx[1], tasks, &head, &tail, BUF_MAX);
+			printf("Server Receiving: \n");
+			print_queue(&head, &tail);
+			fprintf(stdout, "parent: %lld \n current: %lld \n\n", rx[0], rx[1]);
+			usleep(300000);
+		}
 	}
 
 	close(clnt_sock);
