@@ -4,7 +4,11 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <string.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <pthread.h>
 
 #define IN 0
 #define OUT 1
@@ -18,17 +22,17 @@
 //test========================================================
 static char cube[13][17]={
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,8,7,7,7,4,7,4,7,7,7,7,7,7,7,7,7},
+    {7,8,7,7,7,2,7,2,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,4,7,4,7,7,7,7,7,7,7,7,7},
+    {7,7,7,7,7,0,7,0,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,0,7,0,7,1,7,1,7,2,7,2,7,3,7,3,7},
+    {7,0,7,1,7,3,7,3,7,2,7,4,7,5,7,5,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,0,7,0,7,1,7,1,7,2,7,2,7,3,7,3,7},
+    {7,0,7,2,7,4,7,1,7,3,7,1,7,4,7,5,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,5,7,5,7,7,7,7,7,7,7,7,7},
+    {7,7,7,7,7,3,7,4,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,5,7,5,7,7,7,7,7,7,7,7,7},
+    {7,7,7,7,7,1,7,5,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7}
 };
 //==========================================================test
@@ -44,14 +48,15 @@ static char cube[13][17]={
 #define RIGHTIN 2
 #define RIGHTOUT 3
 #define BUFFER_MAX 5000000
-char* tochar = "RGBYOW* E";
+
+int toint[100];
+char* tochar = "RGBYOW* EXYZ";
 int move[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
 int frame[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
-int order[24][2] = {{2,0},{2,1},{3,0},{3,1},{2,2},{2,3},{3,2},{3,3},{2,4},{2,5},{3,4},{3,5},{2,6},{2,7},{3,6},{3,7},{0,2},{0,3},{1,2},{1,3},{4,2},{4,3},{5,2},{5,3}};
-long long inputBuffer[BUFFER_MAX];
-long long outputBuffer[BUFFER_MAX];
-int inputHead = 0, inputTail = 0;
-int outputHead = 0, outputTail = 0;
+int order[24][2] = {{5,1},{5,3},{7,1},{7,3},{5,5},{5,7},{7,5},{7,7},{5,9},{5,11},{7,9},{7,11},{5,13},{5,15},{7,13},{7,15},{1,5},{1,7},{3,5},{3,7},{9,5},{9,7},{11,5},{11,7}};
+long long buffer[5000000];
+int bufferHead = 0, bufferTail = 0;
+int bufferptr = 0, lastIndex = 0;
 
 static long long mask[24];
 typedef struct {
@@ -60,19 +65,19 @@ typedef struct {
     struct node* next;
 } node;
 node *hashmap[100003];
-int contains(long long l0)
-{
+
+node *contains(long long l0) {
     node *tmp = hashmap[l0%100003];
     while(tmp->next)
     {
         tmp = tmp->next;
         if(tmp->value == l0)
-            return 1;
+            return tmp;
     }
     return 0;
 }
-void addmap(long long cur, long long pre, int rot)
-{
+
+void addmap(long long cur, long long pre, int rot){
     node *n1 = hashmap[cur%100003]->next;
     node *n2 = (node *)malloc(sizeof(node));
     hashmap[cur%100003]->next = n2;
@@ -97,6 +102,12 @@ void printCube(int r, int c) {
         cube[r+frame[i0][0]][c+frame[i0][1]]=7;
 }
 //
+void error_handling(char *message) {
+    fputs(message, stderr);
+    fputc('\n', stderr);
+    exit(1);
+}
+
 static int GPIOExport(int pin) {
     #define BUFFER_MAX 3
     char buffer[BUFFER_MAX];
@@ -196,6 +207,7 @@ static int GPIOWrite(int pin, int value) {
     close(fd);
     return (0);
 }
+
 static int init(){
     if (GPIOExport(SOUT) == -1 || GPIOExport(SIN)) {
         return 1;
@@ -239,6 +251,13 @@ static int init(){
         mask[i0] = mask[i0-1]*6;
     for(int i0 = 0; i0 < 100003; i0++)
         hashmap[i0] = (node *)malloc(sizeof(node));
+        
+    toint['R'] = 0;
+    toint['G'] = 1;
+    toint['B'] = 2;
+    toint['Y'] = 3;
+    toint['O'] = 4;
+    toint['W'] = 5;
     return 0;
 }
 static int end(){
@@ -299,26 +318,183 @@ static long long encode()
     int i0;
     long long l0 = 0;
     for(i0 = 0; i0 < 24; i0++)
-        l0 += cube[order[i0][0]*2+1][order[i0][1]*2+1]*mask[i0];
+        l0 += cube[order[i0][0]][order[i0][1]]*mask[i0];
     return l0;
 }
 static void decode(long long l0)
 {
     int i0;
     for(i0 = 0; i0 < 24; i0++)
-        cube[order[i0][0]*2+1][order[i0][1]*2+1] = getColor(l0, i0);
+        cube[order[i0][0]][order[i0][1]] = getColor(l0, i0);
 }
 
-int main() {
+long long X(long long l0) {
+    long long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;
+    l0-=l1*mask[5]; l0-=l2*mask[7];
+    l0+=(l3=(l0/mask[17])%6)*mask[5]; l0+=(l4=(l0/mask[19])%6)*mask[7];
+    l0-=l3*mask[17]; l0-=l4*mask[19];
+    l0+=(l3=(l0/mask[14])%6)*mask[17]; l0+=(l4=(l0/mask[12])%6)*mask[19];
+    l0-=l3*mask[14]; l0-=l4*mask[12];
+    l0+=(l3=(l0/mask[23])%6)*mask[12]; l0+=(l4=(l0/mask[21])%6)*mask[14];
+    l0-=l3*mask[23]; l0-=l4*mask[21];
+    l0+=l1*mask[21]; l0+=l2*mask[23];
+    //
+    l1 = (l0/mask[8])%6; l0-=l1*mask[8];
+    l0+=(l2=(l0/mask[9])%6)*mask[8]; l0-=l2*mask[9];
+    l0+=(l2=(l0/mask[11])%6)*mask[9]; l0-=l2*mask[11];
+    l0+=(l2=(l0/mask[10])%6)*mask[11]; l0-=l2*mask[10];
+    l0+=l1*mask[10];
+    return l0;
+}
+
+long long Y(long long l0) {
+    long long l1 = (l0/mask[0])%6, l2 = (l0/mask[1])%6, l3, l4;
+    l0-=l1*mask[0]; l0-=l2*mask[1];
+    l0+=(l3=(l0/mask[12])%6)*mask[0]; l0+=(l4=(l0/mask[13])%6)*mask[1];
+    l0-=l3*mask[12]; l0-=l4*mask[13];
+    l0+=(l3=(l0/mask[8])%6)*mask[12]; l0+=(l4=(l0/mask[9])%6)*mask[13];
+    l0-=l3*mask[8]; l0-=l4*mask[9];
+    l0+=(l3=(l0/mask[4])%6)*mask[8]; l0+=(l4=(l0/mask[5])%6)*mask[9];
+    l0-=l3*mask[4]; l0-=l4*mask[5];
+    l0+=l1*mask[4]; l0+=l2*mask[5];
+    //
+    l1 = (l0/mask[16])%6; l0-=l1*mask[16];
+    l0+=(l2=(l0/mask[17])%6)*mask[16]; l0-=l2*mask[17];
+    l0+=(l2=(l0/mask[19])%6)*mask[17]; l0-=l2*mask[19];
+    l0+=(l2=(l0/mask[18])%6)*mask[19]; l0-=l2*mask[18];
+    l0+=l1*mask[18];
+    return l0;
+}
+
+long long Z(long long l0) {
+    long long l1 = (l0/mask[1])%6, l2 = (l0/mask[3])%6, l3, l4;
+    l0-=l1*mask[1]; l0-=l2*mask[3];
+    l0+=(l3=(l0/mask[19])%6)*mask[1]; l0+=(l4=(l0/mask[18])%6)*mask[3];
+    l0-=l3*mask[19]; l0-=l4*mask[18];
+    l0+=(l3=(l0/mask[10])%6)*mask[19]; l0+=(l4=(l0/mask[8])%6)*mask[18];
+    l0-=l3*mask[10]; l0-=l4*mask[8];
+    l0+=(l3=(l0/mask[20])%6)*mask[10]; l0+=(l4=(l0/mask[21])%6)*mask[8];
+    l0-=l3*mask[20]; l0-=l4*mask[21];
+    l0+=l1*mask[20]; l0+=l2*mask[21];
+    //
+    l1 = (l0/mask[4])%6; l0-=l1*mask[4];
+    l0+=(l2=(l0/mask[5])%6)*mask[4]; l0-=l2*mask[5];
+    l0+=(l2=(l0/mask[7])%6)*mask[5]; l0-=l2*mask[7];
+    l0+=(l2=(l0/mask[6])%6)*mask[7]; l0-=l2*mask[6];
+    l0+=l1*mask[6];
+    return l0;
+}
+
+long long back;
+int use[6] = {0};
+long long answer[6] = {0};
+int qp = 0;
+void make(int x) {
+    int i0, i1;
+    if(x==3)
+    {
+        answer[qp++] = encode();
+        return;
+    }
+    for(i0 = 0; i0 < 6; i0++)
+        if(!use[i0])
+        {
+            use[i0]=1;
+            int t0=x==0?4:x==1?8:16;
+            for(i1 = 0; i1 < 4; i1++)
+                cube[order[t0+i1][0]][order[t0+i1][1]]=i0;
+            make(x+1);
+            use[i0]=0;
+        }
+}
+
+int serv_sock, clnt_sock1 = -1, clnt_sock2 = -1;
+struct sockaddr_in serv_addr, clnt_addr1, clnt_addr2;
+socklen_t clnt_addr_size1, clnt_addr_size2;
+long long msg;
+long long msgs[3];
+
+int fin = 0, start = 0;
+
+void *receiveMap() {
+    int i0;
+    long long msg, a, b, c;
+    while(!fin)
+    while(clnt_sock1>=0) {
+        
+        if(read(clnt_sock1, msgs, sizeof(msgs)) == -1) {
+            error_handling("read() error");
+        }
+        usleep(1);
+        //printf("receive %lld %lld %lld\n",msgs[0],msgs[1],msgs[2]);
+        if(!contains(msgs[1]))
+		{
+			addmap(msgs[1], msgs[0], msgs[2]);
+            for(i0 = 0; i0 < qp; i0++)
+                if(msgs[1]==answer[i0])
+                    break;
+            if(i0!=qp)
+            {
+                fin = 1;
+                msg=-1;
+                write(clnt_sock1, &msg, sizeof(msg));
+                back = msgs[1];
+    //printf("receiveend %lld %lld\n", back, msgs[1]);
+                return NULL;
+            }
+            buffer[bufferTail] = msgs[1];
+            bufferTail++;
+		}
+    }
+
+
+void *sendMap() {
+    while(!fin)
+        while(bufferHead<bufferTail) {
+            if(fin)
+                pthread_exit(NULL);
+            msg = buffer[bufferHead++];
+            //printf("send %lld\n",msg);
+            write(clnt_sock1, &msg, sizeof(msg));
+        }
+    printf("sendend\n");
+}
+
+int main(int argc, char *argv[]) {
+    if(argc != 2) {
+        printf("Usage : %s <port>\n", argv[0]);
+        return 1;
+    }
+
+    pthread_t receiveThread, sendThread;
+    int thr_id;
+    
     int t0, pre, r = 5, c = 1, preState=0, buttonState=0;
     int i0;
-    long long l0;
+    long long l0=1490354721883308240, l1;
     if(init())
         return 1;
     //network
-    
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (serv_sock == -1) error_handling("socket() error");
+
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_port = htons(atoi(argv[1]));
+
+    if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+        error_handling("bind() error");
+
+    if (listen(serv_sock, 5) == -1) error_handling("listen() error");
+
+    if (clnt_sock1 < 0) {
+        clnt_addr_size1 = sizeof(clnt_addr1);
+        clnt_sock1 = accept(serv_sock, (struct sockaddr *)&clnt_addr1, &clnt_addr_size1);
+        if (clnt_sock1 == -1) error_handling("accept() error");
+    }
+    printf("Connection established %d\n", clnt_addr1);
     //
-    decode(l0);
     printCube(5,1);
     while(1)//change cube using button
     {
@@ -350,12 +526,49 @@ int main() {
         preState = buttonState;
         usleep(500*100);
     }
-    outputBuffer[outputTail++] = encode();
-    //qnstkscjfl
+    buffer[bufferTail] = encode();
+    bufferTail++;
+    addmap(encode(),-1,0);
     
+    for(i0 = 0; i0 < 4; i0++)
+    {
+        cube[order[i0][0]][order[i0][1]] = cube[order[2][0]][order[2][1]];
+        cube[order[i0+12][0]][order[i0+12][1]] = cube[order[15][0]][order[15][1]];
+        cube[order[i0+20][0]][order[i0+20][1]] = cube[order[22][0]][order[22][1]];
+    }
+    use[cube[order[0][0]][order[0][1]]] = 1;
+    use[cube[order[12][0]][order[12][1]]] = 1;
+    use[cube[order[20][0]][order[20][1]]] = 1;
+    make(0);
     //
+    printf("ING %lld %d %d\n",buffer[0],bufferHead,bufferTail);
+    clock_t t = clock();
+    int status;
     
+    thr_id = pthread_create(&sendThread, NULL, sendMap, NULL);
+    if(thr_id < 0) {
+        perror("thread create error : ");
+        exit(0);
+    }
+    thr_id = pthread_create(&receiveThread, NULL, receiveMap, NULL);
+    if(thr_id < 0) {
+        perror("thread create error : ");
+        exit(0);
+    }
+    pthread_join(receiveMap, (void **)&status);
+    pthread_join(sendMap, (void **)&status);
+    while(!fin);
+    usleep(1);
+    printf("\ntime: %lf", (double)(clock()-t)/CLOCKS_PER_SEC);
+    l0 = back;
+    printf("END %lld\n", l0);
+    printf(" %lld\n",contains(l0)->pre);
     //serve
+    while(contains(l0)->pre>0)
+    {
+        printf("%c", tochar[(contains(l0)->rot)+9]);
+        l0 = contains(l0)->pre;
+    }
     
     //
     return end();

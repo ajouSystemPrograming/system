@@ -19,10 +19,12 @@ long long inbuf[INBUF_MAX];
 
 long long outbuf_parents[OUTBUF_MAX];
 long long outbuf[OUTBUF_MAX];
+long long direction[OUTBUF_MAX];
 
 int in_head = 0, in_tail = 0;
 int outp_head = 0, outp_tail = 0;
 int out_head = 0, out_tail = 0;
+int dir_head = 0, dir_tail = 0;
 
 int fin = 0;
 
@@ -52,6 +54,10 @@ int queue_is_full(long long *buffer, int *tail, int size) {
 	}
 
 	return 0;
+}
+
+void print_queue(int *head, int *tail) {
+	printf("head: %d, tail: %d\n", *head, *tail);
 }
 
 void enqueue(long long task, long long *buffer, int *head, int *tail, int size) {
@@ -91,53 +97,41 @@ void *pull(void *arg) {
 			fprintf(stdout, "full in queue: waiting...\n");
 		}
 		else {
-			task = read(sock, &task, sizeof(long long));
+			read(sock, &task, sizeof(long long));
 			enqueue(task, inbuf, &in_head, &in_tail, INBUF_MAX);
-			fprintf(stdout, "pulling from server: %lld \n", task);
+			fprintf(stdout, "(inbuf) pulling from server: %lld \n", task);
+			print_queue(&in_head, &in_tail);
 		}
 
-		usleep(1000000);
+		usleep(150000);
 	}
 
 	return NULL;
 }
 
 void *push(void *arg) {
-	long long arr[2];
+	long long arr[3];
 
 	while(1) {
-		if(queue_is_empty(outbuf_parents, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail)) {
+		if(queue_is_empty(outbuf_parents, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail) || queue_is_empty(direction, &dir_head, &dir_tail)) {
 			fprintf(stdout, "empty out queue: waiting...\n");
 		}
 		else {
 			arr[0] = dequeue(outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			arr[1] = dequeue(outbuf, &out_head, &out_tail, OUTBUF_MAX);
-			write(sock, &arr, 2 * sizeof(long long));
-			fprintf(stdout, "pushing to server: %lld, %lld \n", arr[0], arr[1]);
+			arr[2] = dequeue(direction, &dir_head, &dir_tail, OUTBUF_MAX);
+			write(sock, &arr, 3 * sizeof(long long));
+			fprintf(stdout, "(out) pushing to server: %lld, %lld, %lld\n", arr[0], arr[1], arr[2]);
+			print_queue(&outp_head, &outp_tail);
+			print_queue(&out_head, &out_tail);
 		}
 
-		usleep(1000000);
+		usleep(300000);
 	}
 
 	return NULL;
 }
 
-/*
-   void *calculate(void *arg) {
-   while(1) {
-   if(queue_is_empty(inbuf, &inbuf_head, &inbuf_tail) || queue_is_full(outbuf, &outbuf_tail, OUTBUF_MAX)) {
-   fprintf(stdout, "queue not ready: waiting...\n");
-   }
-   else {
-   fprintf(stdout, "do 1->3 processing\n");
-   }
-
-   usleep(1000);
-   }
-
-   return NULL;
-   }
-   */
 
 long long X(long long l0){
 	long long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;
@@ -202,15 +196,32 @@ void *calculate(void *arg) {
 	while(!fin) {
 		if(!queue_is_empty(inbuf, &in_head, &in_tail)) {
 			l0 = dequeue(inbuf, &in_head, &in_tail, INBUF_MAX);
+			printf("inbuf dequeue\n");
+			print_queue(&in_head, &in_tail);
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(X(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(0, direction, &dir_head, &dir_tail, OUTBUF_MAX);
+			printf("outbuf enqueue\n");
+			print_queue(&outp_head, &outp_tail);
+			print_queue(&out_head, &out_tail);
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Y(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(1, direction, &dir_head, &dir_tail, OUTBUF_MAX);
+			printf("outbuf enqueue\n");
+			print_queue(&outp_head, &outp_tail);
+			print_queue(&out_head, &out_tail);
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Z(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(2, direction, &dir_head, &dir_tail, OUTBUF_MAX);
+			printf("outbuf enqueue\n");
+			print_queue(&outp_head, &outp_tail);
+			print_queue(&out_head, &out_tail);
+
+			printf("%lld %lld %lld \n", X(l0), Y(l0), Z(l0));
+
 			usleep(1000000);
 		}
 		else {
@@ -224,41 +235,10 @@ void *calculate(void *arg) {
 }
 
 void error_handling(char *message) {
-  fputs(message, stderr);
-  fputc('\n', stderr);
-  exit(1);
+	fputs(message, stderr);
+	fputc('\n', stderr);
+	exit(1);
 }
-
-/*
-   int main(void) {
-   init_mask();
-
-   pthread_t p_thread[2];
-   int thr_id;
-   int status;
-   char p1[] = "puller";
-   char p2[] = "pusher";
-   char pM[] = "calculator";
-
-   thr_id = pthread_create(&p_thread[0], NULL, pull, (void *)p1);
-   if (thr_id < 0) {
-   perror("thread create error : ");
-   exit(0);
-   }
-
-   thr_id = pthread_create(&p_thread[1], NULL, push, (void *)p2);
-   if (thr_id < 0) {
-   perror("thread create error : ");
-   exit(0);
-   }
-
-   calculate((void *)pM);
-   pthread_join(p_thread[0], (void **)&status);
-   pthread_join(p_thread[1], (void **)&status);
-
-   return 0;
-   }
-   */
 
 
 int main(int argc, char *argv[]) {
@@ -282,7 +262,7 @@ int main(int argc, char *argv[]) {
 
 	init_mask();
 
-	pthread_t p_thread[2];
+	pthread_t p_thread[3];
 	int thr_id;
 	int status;
 	char p1[] = "puller";
@@ -301,8 +281,14 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 
-	calculate((void *)pM);
+	thr_id = pthread_create(&p_thread[2], NULL, calculate, (void *)pM);
+	if (thr_id < 0) {
+		perror("thread create error : ");
+		exit(0);
+	}
+
 	pthread_join(p_thread[0], (void **)&status);
+	pthread_join(p_thread[2], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
 
 	close(sock);
