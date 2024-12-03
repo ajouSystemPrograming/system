@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 	printf("Connection established\n");
 
 	long long tx;
-	long long rx[2];
+	long long rx[3];
 	
 	long long init = 4271069981394162510;
 	enqueue(init, tasks, &head, &tail, BUF_MAX);
@@ -117,11 +117,11 @@ int main(int argc, char *argv[]) {
 		}
 
 		if(!queue_is_full(tasks, &tail, BUF_MAX)) {
-			read(clnt_sock, &rx, 2 * sizeof(long long));
+			read(clnt_sock, &rx, 3 * sizeof(long long));
 			enqueue(rx[1], tasks, &head, &tail, BUF_MAX);
 			printf("Server Receiving: \n");
 			print_queue(&head, &tail);
-			fprintf(stdout, "parent: %lld \n current: %lld \n\n", rx[0], rx[1]);
+			fprintf(stdout, "parent: %lld \n current: %lld \n direction: %lld \n\n", rx[0], rx[1], rx[2]);
 			usleep(300000);
 		}
 	}

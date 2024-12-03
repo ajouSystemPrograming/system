@@ -19,10 +19,12 @@ long long inbuf[INBUF_MAX];
 
 long long outbuf_parents[OUTBUF_MAX];
 long long outbuf[OUTBUF_MAX];
+long long direction[OUTBUF_MAX];
 
 int in_head = 0, in_tail = 0;
 int outp_head = 0, outp_tail = 0;
 int out_head = 0, out_tail = 0;
+int dir_head = 0, dir_tail = 0;
 
 int fin = 0;
 
@@ -108,17 +110,18 @@ void *pull(void *arg) {
 }
 
 void *push(void *arg) {
-	long long arr[2];
+	long long arr[3];
 
 	while(1) {
-		if(queue_is_empty(outbuf_parents, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail)) {
+		if(queue_is_empty(outbuf_parents, &outp_head, &outp_tail) || queue_is_empty(outbuf, &out_head, &out_tail) || queue_is_empty(direction, &dir_head, &dir_tail)) {
 			fprintf(stdout, "empty out queue: waiting...\n");
 		}
 		else {
 			arr[0] = dequeue(outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			arr[1] = dequeue(outbuf, &out_head, &out_tail, OUTBUF_MAX);
-			write(sock, &arr, 2 * sizeof(long long));
-			fprintf(stdout, "(out) pushing to server: %lld, %lld\n", arr[0], arr[1]);
+			arr[2] = dequeue(direction, &dir_head, &dir_tail, OUTBUF_MAX);
+			write(sock, &arr, 3 * sizeof(long long));
+			fprintf(stdout, "(out) pushing to server: %lld, %lld, %lld\n", arr[0], arr[1], arr[2]);
 			print_queue(&outp_head, &outp_tail);
 			print_queue(&out_head, &out_tail);
 		}
@@ -198,18 +201,21 @@ void *calculate(void *arg) {
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(X(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(0, direction, &dir_head, &dir_tail, OUTBUF_MAX);
 			printf("outbuf enqueue\n");
 			print_queue(&outp_head, &outp_tail);
 			print_queue(&out_head, &out_tail);
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Y(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(1, direction, &dir_head, &dir_tail, OUTBUF_MAX);
 			printf("outbuf enqueue\n");
 			print_queue(&outp_head, &outp_tail);
 			print_queue(&out_head, &out_tail);
 
 			enqueue(l0, outbuf_parents, &outp_head, &outp_tail, OUTBUF_MAX);
 			enqueue(Z(l0), outbuf, &out_head, &out_tail, OUTBUF_MAX);
+			enqueue(2, direction, &dir_head, &dir_tail, OUTBUF_MAX);
 			printf("outbuf enqueue\n");
 			print_queue(&outp_head, &outp_tail);
 			print_queue(&out_head, &out_tail);
