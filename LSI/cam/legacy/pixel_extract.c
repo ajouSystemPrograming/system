@@ -1,13 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #define CENTER_X 320
 #define CENTER_Y 240
-#define DIST 100
-
+#define DIST 250
+#define RNDIST 50
 #define TOLERANCE 70
 
 #define BUF_MAX 25
@@ -24,24 +25,24 @@ typedef struct {
 } Color;
 
 Color colors[6] = {
-	//{200, 40, 70}, // R 255 0 0
-	//{30, 170, 60}, // G 0 255 0
-	//{0, 160, 255}, // B 0 0 255
-	//{170, 200, 30}, // Y 255 255 0
-	//{255, 100, 50}, // O 255 100 50
-	//{200, 200, 200} // W 255 255 255
+	{200, 40, 70}, // R 255 0 0
+	{30, 170, 60}, // G 0 255 0
+	{0, 160, 255}, // B 0 0 255
+	{170, 200, 30}, // Y 255 255 0
+	{255, 100, 50}, // O 255 100 50
+	{200, 200, 200} // W 255 255 255
 	//{255, 0, 0}, // R 255 0 0
 	//{0, 255, 0}, // G 0 255 0
 	//{0, 0, 255}, // B 0 0 255
 	//{255, 255, 0}, // Y 255 255 0
 	//{255, 100, 50}, // O 255 100 50
 	//{255, 255, 255} // W 255 255 255
-	{255, 40, 70}, // R 255 0 0
-	{0, 255, 0}, // G 0 255 0
-	{0, 170, 255}, // B 0 0 255
-	{170, 255, 0}, // Y 255 255 0
-	{255, 100, 50}, // O 255 100 50
-	{230, 230, 230} // W 255 255 255
+	//{255, 40, 70}, // R 255 0 0
+	//{0, 255, 0}, // G 0 255 0
+	//{0, 170, 255}, // B 0 0 255
+	//{170, 255, 0}, // Y 255 255 0
+	//{255, 100, 50}, // O 255 100 50
+	//{230, 230, 230} // W 255 255 255
 };
 
 int width, height, channels; // image info
@@ -154,6 +155,8 @@ int judge_color_1(int red, int green, int blue) {
 
 
 int init(int center_x, int center_y, int dist) {
+	srand(time(NULL));
+
 	center.x = center_x;
 	center.y = center_y;
 
@@ -163,13 +166,29 @@ int init(int center_x, int center_y, int dist) {
 	}
 }
 
+Point pick_point(int x, int y, int dist) {
+	Point rndp;
+	rndp.x = (x-dist)+(rand()%(2*dist+1)); // x-dist ~ x+dist
+	rndp.y = (y-dist)+(rand()%(2*dist+1)); // y-dist ~ y+dist
+	return rndp;
+}
+
 void process_plane(void) {
-	Color c;
+	Color c, fin;
 	int code;
+	Point rndp;
 
 	for(int i=0; i<4; i++) {
-		c = get_rgb(p[i].x, p[i].y);
-		code = judge_color_1(c.r, c.g, c.b);
+		int tr=0, tg=0, tb=0;
+		for(int j=0; j<10; j++) {
+			rndp = pick_point(p[i].x, p[i].y, RNDIST);
+			c = get_rgb(rndp.x, rndp.y);
+			tr += c.r; tg += c.g; tb += c.b;
+			printf("total: %d %d %d\n", tr, tg, tb);
+		}
+		fin.r = tr/10; fin.g = tg/10; fin.b = tb/10;
+		printf("color: %d %d %d\n", fin.r, fin.g, fin.b);
+		code = judge_color_1(fin.r, fin.g, fin.b);
 		plane[i] = code;
 	}	
 }
@@ -180,12 +199,18 @@ int main() {
 	int tmp;
 
 
-	init(CENTER_X, CENTER_Y, DIST);
+	//init(CENTER_X, CENTER_Y, DIST);
+	image = stbi_load("img.jpg", &width, &height, &channels, 0);
+	if (!image) {
+		printf("Failed to load image!\n");
+		return 0;
+	}
+	init(width/2, height/2, DIST);
 
 	for(int i=0; i<6; i++) {
 		printf("capture next and press enter!\n");
 		tmp = getchar();
-		image = stbi_load("capture.jpg", &width, &height, &channels, 0);
+		image = stbi_load("img.jpg", &width, &height, &channels, 0);
 		if (!image) {
 			printf("Failed to load image!\n");
 			return 0;
