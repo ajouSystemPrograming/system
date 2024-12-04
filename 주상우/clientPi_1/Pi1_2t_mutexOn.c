@@ -14,6 +14,7 @@
 #define VALUE_MAX 256
 #define MAX_BUFFER 5000000
 #define fin 0
+int temp;
 
 #define IN 0
 #define OUT 1
@@ -31,8 +32,8 @@ int sock;
 //int msg[2]; 테스트용
 //long long msg1; // receive 1
 //long long msg2[3]; // send 1
-long long msg1[1000]; // receive many
-long long msg2[1000][3]; // send many
+long long msg1; // receive many
+long long msg2[3]; // send many
 
 /*
 long long temp_input[100] = {
@@ -291,34 +292,29 @@ long long Z(long long l0){
     return l0;
 }
 // 인풋 버퍼에서 전개도 하나를 꺼내와, 돌린 결과 아웃풋 3개를 버퍼에 넣는 함수
-void *cal() {
+
+void cal() {
     long long l0;
-    while(!fin)
-    {
-        if(inputHead < inputTail)
-        {
-			int t0 = inputHead++;
-            l0 = inputBuffer[t0];
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = X(l0);
-            outputBuffer[outputTail][2] = 0;
-            outputTail++;
-			//usleep(500 * 100);
-            printf("[l0 :%lld, X(l0) : %lld, Y(l0) : %lld, Z(l0) : %lld]\n", l0, outputBuffer[outputTail-1][1], Y(l0), Z(l0));
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = Y(l0);
-            outputBuffer[outputTail][2] = 1;
-            outputTail++;
-			//usleep(500 * 100);
-            
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = Z(l0);
-            outputBuffer[outputTail][2] = 2;
-            outputTail++;
-			
-			//usleep(500 * 100);
-        }
-    }
+	int t0 = inputHead++;
+	l0 = inputBuffer[t0];
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = X(l0);
+	outputBuffer[outputTail][2] = 0;
+	outputTail++;
+	//usleep(500 * 100);
+	//printf("[l0 :%lld, X(l0) : %lld, Y(l0) : %lld, Z(l0) : %lld]\n", l0, outputBuffer[outputTail-1][1], Y(l0), Z(l0));
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = Y(l0);
+	outputBuffer[outputTail][2] = 1;
+	outputTail++;
+	//usleep(500 * 100);
+	
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = Z(l0);
+	outputBuffer[outputTail][2] = 2;
+	outputTail++;
+	
+	//usleep(500 * 100);
 }
 
 // 비어있으면 0을 출력
@@ -338,13 +334,11 @@ void *receiving_thread(void *data) {
 	//
 	int test_count1;
 	while(1){
-		
-		
 			// 1.
 		if (-1 == read(sock, &msg1, sizeof(msg1)))
 			error_handling("msg1 read() error");
-		usleep(1);
-		printf("%lld\n", msg1);
+		k=0;
+		//printf("%lld\n", msg1);
 		if (-1 == msg1)
 			pthread_exit(NULL);
 		if (msg1) { // 받은 값이 초기값인 0 이라면 실행하지 않음.
@@ -352,34 +346,11 @@ void *receiving_thread(void *data) {
 			// 2.
 			inputBuffer[inputTail] = msg1;
 			inputTail++;
+			cal();
 			printf("[current inputHead and inputTail : %d, %d]\n\n", inputHead, inputTail);
 		} else {
 			//printf("Input buffer is Empty!\n");
 		}
-		//
-		//test_count1++;
-		//if (test_count1 > 10000)
-		//	break;
-			//
-		//usleep(500 * 100);
-		
-		/*
-		for(k = 0; k < 10; k++) {
-			if (temp_input[k]) {
-				printf("[Receive message from Server : %lld]\n",  temp_input[k]);
-				inputBuffer[inputTail++] = temp_input[k];
-				printf("[current inputHead and inputTail : %d, %d]\n\n", inputHead, inputTail);
-			
-			} else {
-				printf("Input buffer is Empty!\n");
-			}
-			test_count1++;
-			if (test_count1 > 100)
-				break;
-				//
-			usleep(500 * 100);
-		}
-		*/
 	}
 	
 
@@ -412,8 +383,9 @@ void *sending_thread(void *data) {
 			//write(sock, &msg2[2], sizeof(msg2[2]));
 
 			write(sock, msg2, sizeof(msg2));
+			//usleep(1);
+			//temp = 1;
 			usleep(1);
-			
 			/*
 			inputBuffer[inputTail] = msg2[1];
 			printf("inputTail : %d\n", inputTail);
@@ -486,17 +458,17 @@ int main(int argc, char *argv[]) {
 		perror("sending_thread created error : ");
 		exit(0);
 	}
-	thr_id3 = pthread_create(&p_thread[0], NULL, cal, NULL);
+	/*
+	 * thr_id3 = pthread_create(&p_thread[2], NULL, cal, NULL);
 	if (thr_id3 < 0) {
 		perror("reveiving_thread created error : ");
 		exit(0);
 	}
+	*/
 	//cal();
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
-	pthread_join(p_thread[2], (void **)&status);
-
-	while(!fin);
+	//pthread_join(p_thread[2], (void **)&status);
 
 	close(sock);
 

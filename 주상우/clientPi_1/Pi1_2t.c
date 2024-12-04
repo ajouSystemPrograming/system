@@ -1,47 +1,70 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
-#include <linux/spi/spidev.h>
-#include <linux/types.h>
+#include <time.h>
 
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
 #define VALUE_MAX 256
-#define MAX_BUFFER 5000000
-#define fin 0
+int fin 0;
+int temp;
 
 #define IN 0
 #define OUT 1
 #define LOW 0
 #define HIGH 1
 
-#define POUT 17 // LED OUT
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
-#define PROPER_BRIGHTNESS 500 // 조도센서 적정 밝기 기준값
+#define POUT 23 // 초음파센서
+#define PIN 24 // 초음파센서
+#define POUT2 16 // LED
+//#define POUT 21 // 버튼
+//#define PIN 20 // 버튼
 
 // 쓰레드와 통신을 위한 변수들
 int sock;
-long long msg1; // receive many
-long long msg2[3]; // send many
+//int msg[2]; 테스트용
+//long long msg1; // receive 1
+//long long msg2[3]; // send 1
+//long long msg1; // receive many
+//long long msg2[3]; // send many
+long long msg[3000][3];
+/*
+long long temp_input[100] = {
+		473911131457577840,
+		123911131457567840,
+		212391113145756784,
+		512391113111314572,
+		612391113111314573,
+		712391113111314574,
+		912391113111314575,
+		812391113411314573,
+		112391113561131457,
+		212391113711314573,
+}; // 테스트용
+*/
+//int prev_state = 1; // 버튼 사용 시1
+//int state = 1; // 버튼 사용 시2
+
+
 
 // 인풋 버퍼와 아웃풋 버퍼
-long long inputBuffer[MAX_BUFFER];
-long long outputBuffer[MAX_BUFFER][3];
-int inputHead;
-int inputTail;
-int outputHead;
-int outputTail;
+//long long inputBuffer[MAX_BUFFER];
+long long buffer[5000][1000];
+int head;
+int tail;
 static long long mask[24];
-
-//GPIO 연결 함수들 
+//에러 핸들링 및 GPIO 연결 함수들
+void error_handling(char *message) {
+	fputs(message, stderr);
+	fputc('\n', stderr);
+	exit(1);
+}
 static int GPIOExport(int pin) {
 	char buffer[BUFFER_MAX];
 	ssize_t bytes_written;
@@ -68,20 +91,18 @@ static int GPIOUnexport(int pin) {
 		fprintf(stderr, "Failed to open unexport for writing!\n");
 		return (-1);
 	}
-
 	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
 	write(fd, buffer, bytes_written);
 	close(fd);
 	return (0);
 }
-static int GPIODirection(int pin, int dir) {#include <arpa/inet.h>
-
+static int GPIODirection(int pin, int dir) {
 	static const char s_directions_str[] = "in\0out";
-
-	char path[DIRECTION_MAX];
+	char path[DIRECTION_MAX] = "/sys/class/gpio/gpio%d/direction";
 	int fd;
 
 	snprintf(path, DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin);
+
 	fd = open(path, O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open gpio direction for writing!\n");
@@ -89,7 +110,7 @@ static int GPIODirection(int pin, int dir) {#include <arpa/inet.h>
 	}
 
 	if (-1 ==
-		write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
+			write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
 		fprintf(stderr, "Failed to set direction!\n");
 		return (-1);
 	}
@@ -97,9 +118,30 @@ static int GPIODirection(int pin, int dir) {#include <arpa/inet.h>
 	close(fd);
 	return (0);
 }
-static int GPIOWrite(int pin, int value) {
-	static const char s_values_str[] = "01";
+static int GPIORead(int pin) {
+	char path[VALUE_MAX];
+	char value_str[3];
+	int fd;
 
+	snprintf(path, VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin);
+	fd = open(path, O_RDONLY);
+	if (-1 == fd) {
+		fprintf(stderr, "Failed to open gpio value for reading!\n");
+		return (-1);
+	}
+
+	if (-1 == read(fd, value_str, 3)) {
+		fprintf(stderr, "Failed to read value!\n");
+		return (-1);
+	}
+
+	close(fd);
+
+	return (atoi(value_str));
+}
+static int GPIOWrite(int pin, int value) {
+	
+	static const char s_values_str[] = "01";
 	char path[VALUE_MAX];
 	int fd;
 
@@ -113,66 +155,83 @@ static int GPIOWrite(int pin, int value) {
 	if (1 != write(fd, &s_values_str[LOW == value ? 0 : 1], 1)) {
 		fprintf(stderr, "Failed to write value!\n");
 		return (-1);
-	}
 
-	close(fd);
-	return (0);
+		close(fd);
+		return (0);
+	}
 }
-//조도 센서 관련 함수 및 변수들
-static const char *DEVICE = "/dev/spidev0.0";
-static uint8_t MODE = 0;
-static uint8_t BITS = 8;
-static uint32_t CLOCK = 1000000;
-static uint16_t DELAY = 5;
-//
-static int prepare(int fd) {
-	if (ioctl(fd, SPI_IOC_WR_MODE, &MODE) == -1) {
-		perror("Can't set MODE");
-		return -1;
+// 거리에 따라 led를 점등시키는 함수
+
+int led_breathing() {
+
+	// Enable GPIO pins
+	if (-1 == GPIOExport(POUT) || -1 == GPIOExport(PIN) || -1 == GPIOExport(POUT2)) {
+		printf("gpio export err\n");
+		return (1);
+	}
+	// wait for writing to export file
+	usleep(100000);
+
+	// Set GPIO directions
+	if (-1 == GPIODirection(POUT, OUT) || -1 == GPIODirection(PIN, IN) || -1 == GPIODirection(POUT2, OUT)) {
+		printf("gpio direction err\n");
+		return (2);
 	}
 
-	if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &BITS) == -1) {
-		perror("Can't set number of BITS");
-		return -1;
+	// init ultrawave trigger
+	GPIOWrite(POUT, 0);
+	usleep(10000);
+	// start
+	clock_t start_t, end_t;
+	double time;
+	double distance = 0;
+
+	while(1) {
+		if (-1 == GPIOWrite(POUT, 1)) {
+			printf("gpio write/trigger err\n");
+			return (3);
+		}
+
+		// 1sec == 1000000ultra_sec, 1ms = 1000ultra_sec
+		usleep(10);
+		GPIOWrite(POUT, 0);
+
+		while (GPIORead(PIN) == 0) {
+			start_t = clock();
+		}
+		while (GPIORead(PIN) == 1) {
+			end_t = clock();
+		}
+
+		time = (double)(end_t - start_t) / CLOCKS_PER_SEC;  // ms
+		printf("time : %.4lf\n", time);
+		distance = time / 2 * 34000;
+		printf("distance : %.2lfcm\n", distance);
+
+		/* 
+		distance에 따른 led 출력 여부 결정
+		거리가 5cm ~ 15cm 일 때만 led 점등
+		*/
+		if (distance < 5.00) {
+			printf("Please put it farther\n");
+			GPIOWrite(POUT2, 0);
+		} else if (distance > 15.00) {
+			printf("Please put it closer\n");
+			GPIOWrite(POUT2, 0);
+		} else {
+			printf("Proper distance\n");
+			GPIOWrite(POUT2, 1);
+			pthread_exit(NULL);
+		}
+		
+
+		usleep(2000000);
 	}
 
-	if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &CLOCK) == -1) {
-		perror("Can't set write CLOCK");
-		return -1;
-	}
+	// Disable GPIO pins
+	if (-1 == GPIOUnexport(POUT) || -1 == GPIOUnexport(PIN) || 1 == GPIOUnexport(POUT2)) return (4);
 
-	if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &CLOCK) == -1) {
-		perror("Can't set read CLOCK");
-		return -1;
-	}
-
-	return 0;
-}
-uint8_t control_bits_differential(uint8_t channel) {
-	return (channel & 7) << 4;
-}
-uint8_t control_bits(uint8_t channel) {
-	return 0x8 | control_bits_differential(channel);
-}
-int readadc(int fd, uint8_t channel) {
-	uint8_t tx[] = {1, control_bits(channel), 0};
-	uint8_t rx[3];
-
-	struct spi_ioc_transfer tr = {
-			.tx_buf = (unsigned long)tx,
-			.rx_buf = (unsigned long)rx,
-			.len = ARRAY_SIZE(tx),
-			.delay_usecs = DELAY,
-			.speed_hz = CLOCK,
-			.bits_per_word = BITS,
-	};
-
-	if (ioctl(fd, SPI_IOC_MESSAGE(1), &tr) == 1) {
-		perror("IO Error");
-		abort();
-	}
-
-	return ((rx[1] << 8) & 0x300) | (rx[2] & 0xFF);
+	printf("complete\n");
 }
 //큐브를 돌린 결과를 반환해주는 함수
 long long X(long long l0){
@@ -230,37 +289,31 @@ long long Z(long long l0){
     return l0;
 }
 // 인풋 버퍼에서 전개도 하나를 꺼내와, 돌린 결과 아웃풋 3개를 버퍼에 넣는 함수
-void *cal() {
+
+void cal() {
     long long l0;
-    while(!fin)
-    {
-        if(inputHead < inputTail)
-        {
-			int t0 = inputHead++;
-            l0 = inputBuffer[t0];
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = X(l0);
-            outputBuffer[outputTail][2] = 0;
-            outputTail++;
-			//usleep(500 * 100);
-            printf("[l0 :%lld, X(l0) : %lld, Y(l0) : %lld, Z(l0) : %lld]\n", l0, outputBuffer[outputTail-1][1], Y(l0), Z(l0));
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = Y(l0);
-            outputBuffer[outputTail][2] = 1;
-            outputTail++;
-			//usleep(500 * 100);
-            
-            outputBuffer[outputTail][0] = l0;
-            outputBuffer[outputTail][1] = Z(l0);
-            outputBuffer[outputTail][2] = 2;
-            outputTail++;
-			
-			//usleep(500 * 100);
-        }
-    }
+	for(int i = 0; i < 1000; i++)
+	{
+		buffer[head][i] = l0;
+		msg[i*3][0] = l0;
+		msg[i*3][1] = X(l0);
+		msg[i*3][2] = 0;
+		
+		msg[i*3+1][0] = l0;
+		msg[i*3+1][1] = Y(l0);
+		msg[i*3+1][2] = 1;
+
+		msg[i*3+2][0] = l0;
+		msg[i*3+2][1] = Z(l0);
+		msg[i*3+2][2] = 2;
+	}
+	head++;
+	//usleep(500 * 100);
 }
+
 // 비어있으면 0을 출력
 // 비어있지 않으면 1을 출력
+
 /*
 1. 소켓 통신으로 메인 파이에서 msg1를 받아
 -> read 사용 
@@ -339,52 +392,14 @@ void *sending_thread(void *data) {
 
 	}
 }
-int led_breathing(){
 
-int fd = open(DEVICE, O_RDWR);
-	if (fd <= 0) {
-    	perror("Device open error");
-		return -1;
-	}
 
-	if (prepare(fd) == -1) {
-    	perror("Device prepare error");
-		return -1;
-	}
-
-	if (GPIOExport(POUT) == -1) {
-		printf("gpio export err\n");
-    	return 1;
-	}
-
-	if (GPIODirection(POUT, OUT) == -1) {
-		printf("gpio direction err\n");
-    	return 2;
-	}
-
-	int t0;
-	while (1) {
-		printf("value: %d\n", t0=readadc(fd, 0));
-    if(t0 < PROPER_BRIGHTNESS) // t0은 0 부터 1023 사이 값
-	    GPIOWrite(POUT, 0);
-		pthread_exit(NULL);
-    else
-	    GPIOWrite(POUT, 1);
-	    usleep(10000);
-	}
-	
-	if (GPIOUnexport(POUT) == -1) {
-    	return 4;
-	}
-}
-
-int main(int argc, char **argv) {
+int main(int argc, char *argv[]) {
 	mask[0]=1;
 	for(int i = 1; i < 24; i++)
 		mask[i] = mask[i-1]*6;
 	//led_breathing();
-
-
+	
 	// 소켓 연결을 위한 코드들
 	
 	struct sockaddr_in serv_addr;
@@ -404,6 +419,7 @@ int main(int argc, char **argv) {
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
 		error_handling("connect() error");
 	printf("Connection established\n");
+	
 	// 여기까지 됐으면, 메인 파이와 소켓 소켈 연결은 수립된 거임.
 	//msg2[0]=1000;
 	//write(sock, msg2, sizeof(msg2));	
@@ -430,17 +446,17 @@ int main(int argc, char **argv) {
 		perror("sending_thread created error : ");
 		exit(0);
 	}
-	thr_id3 = pthread_create(&p_thread[2], NULL, cal, NULL);
+	/*
+	 * thr_id3 = pthread_create(&p_thread[2], NULL, cal, NULL);
 	if (thr_id3 < 0) {
 		perror("reveiving_thread created error : ");
 		exit(0);
 	}
+	*/
 	//cal();
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
-	pthread_join(p_thread[2], (void **)&status);
-
-	while(!fin);
+	//pthread_join(p_thread[2], (void **)&status);
 
 	close(sock);
 

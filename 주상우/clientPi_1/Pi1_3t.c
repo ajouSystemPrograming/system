@@ -22,7 +22,7 @@
 
 #define POUT 23 // 초음파센서
 #define PIN 24 // 초음파센서
-#define POUT2 16 // LED
+#define POUT2 16 // LED OUT
 //#define POUT 21 // 버튼
 //#define PIN 20 // 버튼
 
@@ -31,8 +31,8 @@ int sock;
 //int msg[2]; 테스트용
 //long long msg1; // receive 1
 //long long msg2[3]; // send 1
-long long msg1[1000]; // receive many
-long long msg2[1000][3]; // send many
+long long msg1; // receive many
+long long msg2[3]; // send many
 
 /*
 long long temp_input[100] = {
@@ -163,7 +163,6 @@ static int GPIOWrite(int pin, int value) {
 	}
 }
 // 거리에 따라 led를 점등시키는 함수
-
 int led_breathing() {
 
 	// Enable GPIO pins
@@ -343,7 +342,7 @@ void *receiving_thread(void *data) {
 			// 1.
 		if (-1 == read(sock, &msg1, sizeof(msg1)))
 			error_handling("msg1 read() error");
-		usleep(1);
+		//usleep(1);
 		printf("%lld\n", msg1);
 		if (-1 == msg1)
 			pthread_exit(NULL);
@@ -486,7 +485,7 @@ int main(int argc, char *argv[]) {
 		perror("sending_thread created error : ");
 		exit(0);
 	}
-	thr_id3 = pthread_create(&p_thread[0], NULL, cal, NULL);
+	thr_id3 = pthread_create(&p_thread[2], NULL, cal, NULL);
 	if (thr_id3 < 0) {
 		perror("reveiving_thread created error : ");
 		exit(0);
