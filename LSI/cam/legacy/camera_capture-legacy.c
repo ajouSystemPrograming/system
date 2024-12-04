@@ -15,7 +15,7 @@
 #define CAMERA "/dev/video0"
 
 // the name of captured image
-#define IMAGE "capture.jpg"
+#define IMAGE "img.jpg"
 
 // image size (2592x1944 is maximum)
 #define WIDTH 640

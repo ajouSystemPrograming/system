@@ -7,8 +7,8 @@
 
 #define CENTER_X 320
 #define CENTER_Y 240
-#define DIST 250
-#define RNDIST 50
+#define DIST 100
+#define RNDIST 20
 #define TOLERANCE 70
 
 #define BUF_MAX 25
@@ -25,12 +25,18 @@ typedef struct {
 } Color;
 
 Color colors[6] = {
-	{200, 40, 70}, // R 255 0 0
-	{30, 170, 60}, // G 0 255 0
-	{0, 160, 255}, // B 0 0 255
-	{170, 200, 30}, // Y 255 255 0
-	{255, 100, 50}, // O 255 100 50
-	{200, 200, 200} // W 255 255 255
+	{200, 50, 100},
+	{30, 170, 60},
+	{0, 160, 255},
+	{170, 200, 30},
+	{200, 100, 50}, //{250, 120, 25},
+	{180, 180, 180} //{100, 150, 150} //{200, 200, 200}
+	//{200, 40, 70}, // R 255 0 0
+	//{30, 170, 60}, // G 0 255 0
+	//{0, 160, 255}, // B 0 0 255
+	//{170, 200, 30}, // Y 255 255 0
+	//{255, 100, 50}, // O 255 100 50
+	//{200, 200, 200} // W 255 255 255
 	//{255, 0, 0}, // R 255 0 0
 	//{0, 255, 0}, // G 0 255 0
 	//{0, 0, 255}, // B 0 0 255
@@ -77,6 +83,9 @@ int order[24][2] = {{5,1},{5,3},{7,1},{7,3},{5,5},{5,7},{7,5},{7,7},{5,9},{5,11}
 
 static long long mask[24];
 
+char* tochar = "RGBYOW* EXYZ";
+int frame[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
+
 static long long encode() {
 	int i0;
 	long long l0 = 0;
@@ -85,7 +94,30 @@ static long long encode() {
 	return l0;
 }
 
+static int getColor(long long l0, int index) {
+    return (l0/mask[index])%6;
+}
 
+static void decode(long long l0) {
+    int i0;
+    for(i0 = 0; i0 < 24; i0++)
+        cube[order[i0][0]][order[i0][1]] = getColor(l0, i0);
+}
+
+void printCube(int r, int c) {
+    int i0,i1;
+    for(i0 = 0; i0 < 4; i0++)
+        cube[r+frame[i0][0]][c+frame[i0][1]]=6;
+
+    for(i0 = 0; i0 < 13; i0++)
+    {
+        for(i1 = 0; i1 < 17; i1++)
+            printf("%c",tochar[cube[i0][i1]]);
+        printf("\n");
+    }
+    for(i0 = 0; i0 < 4; i0++)
+        cube[r+frame[i0][0]][c+frame[i0][1]]=7;
+}
 
 int pixel_index(int x, int y) {
 	int index = (y * width + x) * channels; // Calculate the pixel's index
@@ -164,6 +196,11 @@ int init(int center_x, int center_y, int dist) {
 		p[i].x = (i%2==0) ? center_x - dist : center_x + dist;
 		p[i].y = (i<2) ? center_y + dist : center_y - dist;
 	}
+
+	int i0;
+	mask[0] = 1;
+	for(i0 = 1; i0 < 24; i0++)
+		mask[i0] = mask[i0-1]*6;
 }
 
 Point pick_point(int x, int y, int dist) {
@@ -193,19 +230,32 @@ void process_plane(void) {
 	}	
 }
 
+void flip(void) {
+	int tmp;
+	
+	tmp = plane[1];
+	plane[1] = plane[0];
+	plane[0] = tmp;
+
+	tmp = plane[3];
+	plane[3] = plane[2];
+	plane[2] = tmp;
+}
+
+
 
 int main() {
 	long long planar;
 	int tmp;
 
 
-	//init(CENTER_X, CENTER_Y, DIST);
-	image = stbi_load("img.jpg", &width, &height, &channels, 0);
-	if (!image) {
-		printf("Failed to load image!\n");
-		return 0;
-	}
-	init(width/2, height/2, DIST);
+	init(CENTER_X, CENTER_Y, DIST);
+	/*image = stbi_load("img.jpg", &width, &height, &channels, 0);
+	  if (!image) {
+	  printf("Failed to load image!\n");
+	  return 0;
+	  }*/
+	//init(width/2, height/2, DIST);
 
 	for(int i=0; i<6; i++) {
 		printf("capture next and press enter!\n");
@@ -218,7 +268,13 @@ int main() {
 		process_plane();
 		for(int j=0; j<4; j++) {
 			printf("%d", plane[j]);
-			cube[order[i*4+j][0]][order[i*4+j][1]] = plane[j];
+		}
+		printf("\n");
+
+		flip();
+		for(int k=0; k<4; k++) {
+			printf("%d", plane[k]);
+			cube[order[i*4+k][0]][order[i*4+k][1]] = plane[k];
 		}
 		printf("\n");
 	}
@@ -226,6 +282,9 @@ int main() {
 	planar = encode();
 
 	printf("%lld\n", planar);
+
+	decode(planar);
+	printCube(5, 1);
 
 	stbi_image_free(image); // Free the image data
 	return 0;
