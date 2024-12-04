@@ -1,4 +1,4 @@
-//2024.11.29
+//2024.12.04
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <pthread.h>
 
+
 #define IN 0
 #define OUT 1
 
@@ -18,23 +19,24 @@
 
 #define VALUE_MAX 40
 #define DIRECTION_MAX 40
+#define THREAD_MAX 2
 
 //test========================================================
 static char cube[13][17]={
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,8,7,7,7,2,7,2,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,0,7,0,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,0,7,1,7,3,7,3,7,2,7,4,7,5,7,5,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,0,7,2,7,4,7,1,7,3,7,1,7,4,7,5,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,3,7,4,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,1,7,5,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7}
-};
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,8,7,7,7,2,7,2,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,0,7,0,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,0,7,1,7,3,7,3,7,2,7,4,7,5,7,5,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,0,7,2,7,4,7,1,7,3,7,1,7,4,7,5,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,3,7,4,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,1,7,5,7,7,7,7,7,7,7,7,7},
+        {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7}
+        };
 //==========================================================test
 
 #define SIN 17
@@ -55,14 +57,16 @@ int move[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
 int frame[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
 int order[24][2] = {{5,1},{5,3},{7,1},{7,3},{5,5},{5,7},{7,5},{7,7},{5,9},{5,11},{7,9},{7,11},{5,13},{5,15},{7,13},{7,15},{1,5},{1,7},{3,5},{3,7},{9,5},{9,7},{11,5},{11,7}};
 long long buffer[5000000];
+
+int test[5000000];
 int bufferHead = 0, bufferTail = 0;
 int bufferptr = 0, lastIndex = 0;
 
 static long long mask[24];
 typedef struct {
-    int rot;
-    long long value, pre;
-    struct node* next;
+int rot;
+long long value, pre;
+struct node* next;
 } node;
 node *hashmap[100003];
 
@@ -91,7 +95,8 @@ void printCube(int r, int c) {
     int i0,i1;
     for(i0 = 0; i0 < 4; i0++)
         cube[r+frame[i0][0]][c+frame[i0][1]]=6;
-    
+    for(i0 = 0; i0 < 13; i0++)
+        printf("\033[A");
     for(i0 = 0; i0 < 13; i0++)
     {
         for(i1 = 0; i1 < 17; i1++)
@@ -244,6 +249,23 @@ static int init(){
     if (GPIODirection(RIGHTOUT, OUT) == -1 || GPIODirection(RIGHTIN, IN) == -1) {
         return 2;
     }
+
+    if (GPIOWrite(UPOUT, 1) == -1) {
+        return 3;
+    }
+    if (GPIOWrite(DOWNOUT, 1) == -1) {
+        return 3;
+    }
+    if (GPIOWrite(LEFTOUT, 1) == -1) {
+        return 3;
+    }
+    if (GPIOWrite(RIGHTOUT, 1) == -1) {
+        return 3;
+    }
+    if (GPIOWrite(SOUT, 1) == -1) {
+        return 3;
+    }
+
     //
     int i0;
     mask[0] = 1;
@@ -251,7 +273,7 @@ static int init(){
         mask[i0] = mask[i0-1]*6;
     for(int i0 = 0; i0 < 100003; i0++)
         hashmap[i0] = (node *)malloc(sizeof(node));
-        
+
     toint['R'] = 0;
     toint['G'] = 1;
     toint['B'] = 2;
@@ -260,6 +282,7 @@ static int init(){
     toint['W'] = 5;
     return 0;
 }
+
 static int end(){
     if (GPIOUnexport(SOUT) == -1 || GPIOUnexport(SIN) == -1) {
         return 4;
@@ -279,50 +302,35 @@ static int end(){
 
     return 0;
 }
+
 static int ButtonInput(){
-    
+
     int buttonState = 0;
-    if (GPIOWrite(UPOUT, 1) == -1) {
-        return 3;
-    }
     buttonState += (1^GPIORead(UPIN));
-    
-    if (GPIOWrite(DOWNOUT, 1) == -1) {
-        return 3;
-    }
+
     buttonState += (1^GPIORead(DOWNIN))<<1;
-    
-    if (GPIOWrite(LEFTOUT, 1) == -1) {
-        return 3;
-    }
+
     buttonState += (1^GPIORead(LEFTIN))<<2;
-    
-    if (GPIOWrite(RIGHTOUT, 1) == -1) {
-        return 3;
-    }
+
     buttonState += (1^GPIORead(RIGHTIN))<<3;
-    if (GPIOWrite(SOUT, 1) == -1) {
-        return 3;
-    }
+
     buttonState += (1^GPIORead(SIN))<<4;
     return buttonState;
 }
 
-static int getColor(long long l0, int index)
-{
+static int getColor(long long l0, int index) {
     return (l0/mask[index])%6;
 }
 
-static long long encode()
-{
+static long long encode() {
     int i0;
     long long l0 = 0;
     for(i0 = 0; i0 < 24; i0++)
         l0 += cube[order[i0][0]][order[i0][1]]*mask[i0];
     return l0;
 }
-static void decode(long long l0)
-{
+
+static void decode(long long l0) {
     int i0;
     for(i0 = 0; i0 < 24; i0++)
         cube[order[i0][0]][order[i0][1]] = getColor(l0, i0);
@@ -408,28 +416,28 @@ void make(int x) {
         }
 }
 
-int serv_sock, clnt_sock1 = -1, clnt_sock2 = -1;
-struct sockaddr_in serv_addr, clnt_addr1, clnt_addr2;
-socklen_t clnt_addr_size1, clnt_addr_size2;
+        int serv_sock, clnt_sock[3] = {-1,-1,-1};
+struct sockaddr_in serv_addr, clnt_addr[3], clnt_addr[3];
+socklen_t clnt_addr_size[3];
 long long msg;
 long long msgs[3];
 
-int fin = 0, start = 0;
+        int fin = 0, start = 0;
 
-void *receiveMap() {
+void *receiveMap0(void *clnt_sock) {
+    printf("receive %d\n",(int *)clnt_sock);
     int i0;
     long long msg, a, b, c;
-    while(!fin)
-    while(clnt_sock1>=0) {
-        
-        if(read(clnt_sock1, msgs, sizeof(msgs)) == -1) {
+    while(!fin) {
+
+        if(read((int *)clnt_sock, msgs, sizeof(msgs)) == -1) {
             error_handling("read() error");
         }
-        usleep(1);
+        i0=0;
         //printf("receive %lld %lld %lld\n",msgs[0],msgs[1],msgs[2]);
         if(!contains(msgs[1]))
-		{
-			addmap(msgs[1], msgs[0], msgs[2]);
+        {
+            addmap(msgs[1], msgs[0], msgs[2]);
             for(i0 = 0; i0 < qp; i0++)
                 if(msgs[1]==answer[i0])
                     break;
@@ -437,25 +445,83 @@ void *receiveMap() {
             {
                 fin = 1;
                 msg=-1;
-                write(clnt_sock1, &msg, sizeof(msg));
+                write((int *)clnt_sock, &msg, sizeof(msg));
                 back = msgs[1];
-    //printf("receiveend %lld %lld\n", back, msgs[1]);
+                //printf("receiveend %lld %lld\n", back, msgs[1]);
                 return NULL;
             }
-            buffer[bufferTail] = msgs[1];
-            bufferTail++;
-		}
+            int t0 = ++bufferTail;
+            buffer[t0-1] = msgs[1];
+            test[t0-1]++;
+            if(test[t0-1]!=1)
+            {
+                printf("%d",t0-1);
+                exit(0);
+            }
+        }
     }
+}
+void *receiveMap1(void *clnt_sock) {
+    printf("receive %d\n",(int *)clnt_sock);
+    int i0;
+    long long msg, a, b, c;
+    while(!fin) {
 
-
-void *sendMap() {
+        if(read((int *)clnt_sock, msgs, sizeof(msgs)) == -1) {
+            error_handling("read() error");
+        }
+        i0=0;
+        //printf("receive %lld %lld %lld\n",msgs[0],msgs[1],msgs[2]);
+        if(!contains(msgs[1]))
+        {
+            addmap(msgs[1], msgs[0], msgs[2]);
+            for(i0 = 0; i0 < qp; i0++)
+                if(msgs[1]==answer[i0])
+                    break;
+            if(i0!=qp)
+            {
+                fin = 1;
+                msg=-1;
+                write((int *)clnt_sock, &msg, sizeof(msg));
+                back = msgs[1];
+                //printf("receiveend %lld %lld\n", back, msgs[1]);
+                return NULL;
+            }
+            int t0 = ++bufferTail;
+            buffer[t0-1] = msgs[1];
+            test[t0-1]++;
+            if(test[t0-1]!=1)
+            {
+                printf("%d",t0-1);
+                exit(0);
+            }
+        }
+    }
+}
+        int bufferHead0, bufferHead1;
+void *sendMap0(void *clnt_sock) {
+    printf("send %d\n",(int *)clnt_sock);
     while(!fin)
         while(bufferHead<bufferTail) {
             if(fin)
                 pthread_exit(NULL);
-            msg = buffer[bufferHead++];
-            //printf("send %lld\n",msg);
-            write(clnt_sock1, &msg, sizeof(msg));
+            int t0 = ++bufferHead;
+            msg = buffer[t0-1];
+            printf("send %d\n",t0-1);
+            write((int *)clnt_sock, &msg, sizeof(msg));
+        }
+    printf("sendend\n");
+}
+void *sendMap1(void *clnt_sock) {
+    printf("send %d\n",(int *)clnt_sock);
+    while(!fin)
+        while(bufferHead<bufferTail) {
+            if(fin)
+                pthread_exit(NULL);
+            int t0 = ++bufferHead;
+            msg = buffer[t0-1];
+            printf("send %d\n",t0-1);
+            write((int *)clnt_sock, &msg, sizeof(msg));
         }
     printf("sendend\n");
 }
@@ -466,14 +532,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    pthread_t receiveThread, sendThread;
+    pthread_t receiveThread[3], sendThread[3];
     int thr_id;
-    
     int t0, pre, r = 5, c = 1, preState=0, buttonState=0;
     int i0;
     long long l0=1490354721883308240, l1;
     if(init())
         return 1;
+    decode(l0);
     //network
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (serv_sock == -1) error_handling("socket() error");
@@ -484,18 +550,26 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_port = htons(atoi(argv[1]));
 
     if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("bind() error");
+    error_handling("bind() error");
 
     if (listen(serv_sock, 5) == -1) error_handling("listen() error");
 
-    if (clnt_sock1 < 0) {
-        clnt_addr_size1 = sizeof(clnt_addr1);
-        clnt_sock1 = accept(serv_sock, (struct sockaddr *)&clnt_addr1, &clnt_addr_size1);
-        if (clnt_sock1 == -1) error_handling("accept() error");
+    for(i0 = 0; i0 < THREAD_MAX; i0++)
+    {
+        if (clnt_sock[i0] < 0) {
+            clnt_addr_size[i0] = sizeof(clnt_addr[i0]);
+            clnt_sock[i0] = accept(serv_sock, (struct sockaddr *)&clnt_addr[i0], &clnt_addr_size[i0]);
+            if (clnt_sock[i0] == -1) error_handling("accept() error");
+        }
+        printf("Connection established %d\n", clnt_addr[i0]);
     }
-    printf("Connection established %d\n", clnt_addr1);
     //
-    printCube(5,1);
+    for(int i = 0; i < 13; i++)
+    {
+        for(int j = 0; j < 17; j++)
+            printf("%c",tochar[cube[i][j]]);
+        printf("\n");
+    }
     while(1)//change cube using button
     {
         buttonState = ButtonInput();
@@ -529,7 +603,7 @@ int main(int argc, char *argv[]) {
     buffer[bufferTail] = encode();
     bufferTail++;
     addmap(encode(),-1,0);
-    
+
     for(i0 = 0; i0 < 4; i0++)
     {
         cube[order[i0][0]][order[i0][1]] = cube[order[2][0]][order[2][1]];
@@ -544,32 +618,53 @@ int main(int argc, char *argv[]) {
     printf("ING %lld %d %d\n",buffer[0],bufferHead,bufferTail);
     clock_t t = clock();
     int status;
-    
-    thr_id = pthread_create(&sendThread, NULL, sendMap, NULL);
+
+    thr_id = pthread_create(&sendThread[0], NULL, sendMap0, (void *)clnt_sock[0]);
     if(thr_id < 0) {
         perror("thread create error : ");
         exit(0);
     }
-    thr_id = pthread_create(&receiveThread, NULL, receiveMap, NULL);
+
+    thr_id = pthread_create(&receiveThread[0], NULL, receiveMap0, (void *)clnt_sock[0]);
     if(thr_id < 0) {
         perror("thread create error : ");
         exit(0);
     }
-    pthread_join(receiveMap, (void **)&status);
-    pthread_join(sendMap, (void **)&status);
-    while(!fin);
+    thr_id = pthread_create(&sendThread[1], NULL, sendMap0, (void *)clnt_sock[1]);
+    if(thr_id < 0) {
+        perror("thread create error : ");
+        exit(0);
+    }
+
+    thr_id = pthread_create(&receiveThread[1], NULL, receiveMap0, (void *)clnt_sock[1]);
+    if(thr_id < 0) {
+        perror("thread create error : ");
+        exit(0);
+    }
+
+    pthread_join(sendThread[0], (void **)&status);
+    pthread_join(receiveThread[0], (void **)&status);
+    pthread_join(sendThread[1], (void **)&status);
+    pthread_join(receiveThread[1], (void **)&status);
+
     usleep(1);
     printf("\ntime: %lf", (double)(clock()-t)/CLOCKS_PER_SEC);
     l0 = back;
     printf("END %lld\n", l0);
     printf(" %lld\n",contains(l0)->pre);
     //serve
+    int stack[100];
+    int sp = 0;
     while(contains(l0)->pre>0)
     {
-        printf("%c", tochar[(contains(l0)->rot)+9]);
+        stack[sp++] = contains(l0)->rot;
         l0 = contains(l0)->pre;
     }
-    
+    while(sp-->0)
+    {
+        printf("%c",tochar[stack[sp]+9]);
+    }
+
     //
     return end();
 }
