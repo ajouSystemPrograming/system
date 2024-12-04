@@ -9,7 +9,6 @@
 #define CENTER_Y 240
 #define DIST 100
 #define RNDIST 20
-#define TOLERANCE 70
 
 #define BUF_MAX 25
 
@@ -29,32 +28,12 @@ Color colors[6] = {
 	{30, 170, 60},
 	{0, 160, 255},
 	{170, 200, 30},
-	{200, 100, 50}, //{250, 120, 25},
-	{180, 180, 180} //{100, 150, 150} //{200, 200, 200}
-	//{200, 40, 70}, // R 255 0 0
-	//{30, 170, 60}, // G 0 255 0
-	//{0, 160, 255}, // B 0 0 255
-	//{170, 200, 30}, // Y 255 255 0
-	//{255, 100, 50}, // O 255 100 50
-	//{200, 200, 200} // W 255 255 255
-	//{255, 0, 0}, // R 255 0 0
-	//{0, 255, 0}, // G 0 255 0
-	//{0, 0, 255}, // B 0 0 255
-	//{255, 255, 0}, // Y 255 255 0
-	//{255, 100, 50}, // O 255 100 50
-	//{255, 255, 255} // W 255 255 255
-	//{255, 40, 70}, // R 255 0 0
-	//{0, 255, 0}, // G 0 255 0
-	//{0, 170, 255}, // B 0 0 255
-	//{170, 255, 0}, // Y 255 255 0
-	//{255, 100, 50}, // O 255 100 50
-	//{230, 230, 230} // W 255 255 255
+	{200, 100, 50},
+	{180, 180, 180}
 };
 
 int width, height, channels; // image info
 unsigned char *image;
-
-int tolerance = TOLERANCE; // error allowance range
 
 int whole[BUF_MAX]; // whole planes color info stream
 int plane[4]; // color info stream of each plane
@@ -146,26 +125,6 @@ int get_diff(int x, int y) {
 
 int judge_color(int red, int green, int blue) {
 	int color_code;
-	Color diff;
-
-	for(int i=0; i<6; i++) {
-		diff.r = get_diff(red, colors[i].r);
-		diff.g = get_diff(green, colors[i].g);
-		diff.b = get_diff(blue, colors[i].b);
-
-		if((diff.r <= tolerance) && (diff.g <= tolerance) && (diff.b <= tolerance)) {
-			printf("classified! %d\n", i);
-			color_code = i;
-			return color_code;
-		}
-	}
-
-	color_code = 5; // if unknown, set to WHITE
-	return color_code;
-}
-
-int judge_color_1(int red, int green, int blue) {
-	int color_code;
 	int diff;
 	int min = 999;
 	printf("===============================\n");
@@ -225,7 +184,7 @@ void process_plane(void) {
 		}
 		fin.r = tr/10; fin.g = tg/10; fin.b = tb/10;
 		printf("color: %d %d %d\n", fin.r, fin.g, fin.b);
-		code = judge_color_1(fin.r, fin.g, fin.b);
+		code = judge_color(fin.r, fin.g, fin.b);
 		plane[i] = code;
 	}	
 }
@@ -250,12 +209,6 @@ int main() {
 
 
 	init(CENTER_X, CENTER_Y, DIST);
-	/*image = stbi_load("img.jpg", &width, &height, &channels, 0);
-	  if (!image) {
-	  printf("Failed to load image!\n");
-	  return 0;
-	  }*/
-	//init(width/2, height/2, DIST);
 
 	for(int i=0; i<6; i++) {
 		printf("capture next and press enter!\n");
