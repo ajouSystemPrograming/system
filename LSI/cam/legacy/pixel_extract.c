@@ -6,7 +6,7 @@
 
 #define CENTER_X 320
 #define CENTER_Y 240
-#define DIST 80
+#define DIST 100
 
 #define TOLERANCE 70
 
@@ -24,12 +24,24 @@ typedef struct {
 } Color;
 
 Color colors[6] = {
-	{200, 40, 70}, // R 255 0 0
-	{30, 170, 60}, // G 0 255 0
-	{0, 160, 255}, // B 0 0 255
-	{170, 200, 30}, // Y 255 255 0
+	//{200, 40, 70}, // R 255 0 0
+	//{30, 170, 60}, // G 0 255 0
+	//{0, 160, 255}, // B 0 0 255
+	//{170, 200, 30}, // Y 255 255 0
+	//{255, 100, 50}, // O 255 100 50
+	//{200, 200, 200} // W 255 255 255
+	//{255, 0, 0}, // R 255 0 0
+	//{0, 255, 0}, // G 0 255 0
+	//{0, 0, 255}, // B 0 0 255
+	//{255, 255, 0}, // Y 255 255 0
+	//{255, 100, 50}, // O 255 100 50
+	//{255, 255, 255} // W 255 255 255
+	{255, 40, 70}, // R 255 0 0
+	{0, 255, 0}, // G 0 255 0
+	{0, 170, 255}, // B 0 0 255
+	{170, 255, 0}, // Y 255 255 0
 	{255, 100, 50}, // O 255 100 50
-	{200, 200, 200} // W 255 255 255
+	{230, 230, 230} // W 255 255 255
 };
 
 int width, height, channels; // image info
@@ -119,6 +131,27 @@ int judge_color(int red, int green, int blue) {
 	return color_code;
 }
 
+int judge_color_1(int red, int green, int blue) {
+	int color_code;
+	int diff;
+	int min = 999;
+	printf("===============================\n");
+
+	for(int i=0; i<6; i++) {
+		diff = get_diff(red, colors[i].r);
+		diff += get_diff(green, colors[i].g);
+		diff += get_diff(blue, colors[i].b);
+		printf("%d\n",diff);
+		if(min > diff) {
+			min = diff;
+			color_code = i;
+		}
+	}
+
+	return color_code;
+}
+
+
 
 int init(int center_x, int center_y, int dist) {
 	center.x = center_x;
@@ -136,7 +169,7 @@ void process_plane(void) {
 
 	for(int i=0; i<4; i++) {
 		c = get_rgb(p[i].x, p[i].y);
-		code = judge_color(c.r, c.g, c.b);
+		code = judge_color_1(c.r, c.g, c.b);
 		plane[i] = code;
 	}	
 }
