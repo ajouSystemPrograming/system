@@ -1,9 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#include <fcntl.h>
-#include <unistd.h>
+#ifndef __CAMERA_CAPTURE_H__
+#define __CAMERA_CAPTURE_H__
 
 #include <sys/mman.h>
 #include <sys/ioctl.h>
@@ -128,11 +124,7 @@ int capture(void) {
 	close(image);
 	close(fd);
 
-	return 0;	
-}
-
-int main(void) {
-	capture();
-
 	return 0;
 }
+
+#endif

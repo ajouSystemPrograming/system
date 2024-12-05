@@ -1,12 +1,26 @@
-#include <arpa/inet.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <string.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
+
+// =========[CAM]===========
+#include "camera_capture.h"
+
+
+// =====[IMAGE PROCESSING]=====
+#include "cube.h"
+#include "pixel_extract.h"
+
+
+// =========[MAIN]==========
 
 #define TRUE 1
 #define FALSE 0
@@ -20,6 +34,8 @@ struct sockaddr_in serv_addr;
 // buffer array
 char buffer[BUFMAX];
 
+char *msg;
+
 /* error handler */
 void error_handling(char *message) {
 	fputs(message, stderr);
@@ -29,15 +45,15 @@ void error_handling(char *message) {
 
 
 /* step 0: init */
-int init(void) {
+int init(char *argv_1, char *argv_2) {
 	// Communication settings
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1) error_handling("socket() error");
 
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-	serv_addr.sin_port = htons(atoi(argv[2]));
+	serv_addr.sin_addr.s_addr = inet_addr(argv_1);
+	serv_addr.sin_port = htons(atoi(argv_2));
 
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
 		error_handling("connect() error");
@@ -51,24 +67,23 @@ int init(void) {
 /* step 1: camera sensing & processing */
 int process_cube(void) {
 	char *msg;
-
-	for(int i=0; i<6; i++) { // for 6 planes of the cube
+	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
 		while(TRUE) {
 			if(msg=="OK") { // wait until read the signal
 				break;
 			}
 		}
 
-		camera_capture();
-		pixel_extract();
+		capture(); // capture cube plane image
+		process_image(); // get colors for the cube plane and apply to cube planar
 
 		write(sock, &buffer, sizeof(char)); // alert ready for next sign
 
 	}
 
-	l0 = encode();
+	long long l0 = encode();
 
-	write(sock, &buffer, sizeof(char));
+	write(sock, &l0, sizeof(long long));
 
 	return 0;
 }
@@ -110,6 +125,8 @@ int main(int argc, char *argv[]) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	}
+
+	init(argv[1], argv[2]);
 
 	// read/write to initialize connection
 	write(sock, &buffer, sizeof(char));
