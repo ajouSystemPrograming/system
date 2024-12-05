@@ -12,7 +12,8 @@
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
 #define VALUE_MAX 256
-int fin 0;
+#define MAX_BUFFER 5000000
+#define fin 0
 int temp;
 
 #define IN 0
@@ -31,9 +32,9 @@ int sock;
 //int msg[2]; 테스트용
 //long long msg1; // receive 1
 //long long msg2[3]; // send 1
-//long long msg1; // receive many
-//long long msg2[3]; // send many
-long long msg[3000][3];
+long long msg1; // receive many
+long long msg2[3]; // send many
+
 /*
 long long temp_input[100] = {
 		473911131457577840,
@@ -54,10 +55,12 @@ long long temp_input[100] = {
 
 
 // 인풋 버퍼와 아웃풋 버퍼
-//long long inputBuffer[MAX_BUFFER];
-long long buffer[5000][1000];
-int head;
-int tail;
+long long inputBuffer[MAX_BUFFER];
+long long outputBuffer[MAX_BUFFER][3];
+int inputHead;
+int inputTail;
+int outputHead;
+int outputTail;
 static long long mask[24];
 //에러 핸들링 및 GPIO 연결 함수들
 void error_handling(char *message) {
@@ -292,22 +295,25 @@ long long Z(long long l0){
 
 void cal() {
     long long l0;
-	for(int i = 0; i < 1000; i++)
-	{
-		buffer[head][i] = l0;
-		msg[i*3][0] = l0;
-		msg[i*3][1] = X(l0);
-		msg[i*3][2] = 0;
-		
-		msg[i*3+1][0] = l0;
-		msg[i*3+1][1] = Y(l0);
-		msg[i*3+1][2] = 1;
-
-		msg[i*3+2][0] = l0;
-		msg[i*3+2][1] = Z(l0);
-		msg[i*3+2][2] = 2;
-	}
-	head++;
+	int t0 = inputHead++;
+	l0 = inputBuffer[t0];
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = X(l0);
+	outputBuffer[outputTail][2] = 0;
+	outputTail++;
+	//usleep(500 * 100);
+	//printf("[l0 :%lld, X(l0) : %lld, Y(l0) : %lld, Z(l0) : %lld]\n", l0, outputBuffer[outputTail-1][1], Y(l0), Z(l0));
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = Y(l0);
+	outputBuffer[outputTail][2] = 1;
+	outputTail++;
+	//usleep(500 * 100);
+	
+	outputBuffer[outputTail][0] = l0;
+	outputBuffer[outputTail][1] = Z(l0);
+	outputBuffer[outputTail][2] = 2;
+	outputTail++;
+	
 	//usleep(500 * 100);
 }
 
@@ -327,23 +333,28 @@ void *receiving_thread(void *data) {
 	int k = 0;
 	//
 	int test_count1;
-	while(!fin){
+	while(1){
 			// 1.
-		if (-1 == read(sock, buffer[tail], sizeof(buffer[0])))
+		if (-1 == read(sock, &msg1, sizeof(msg1)))
 			error_handling("msg1 read() error");
-			if(buffer[tail][0]==-1)
-			{
-				fin = 1;
-				//exit
-			}
 		k=0;
 		//printf("%lld\n", msg1);
-		if (-1 == buffer[tail])
+		if (-1 == msg1)
 			pthread_exit(NULL);
-		tail++;
+		if (msg1) { // 받은 값이 초기값인 0 이라면 실행하지 않음.
+			printf("[Receive message from Server : %lld]\n",  msg1); 
+			// 2.
+			inputBuffer[inputTail] = msg1;
+			inputTail++;
+			cal();
+			printf("[current inputHead and inputTail : %d, %d]\n\n", inputHead, inputTail);
+		} else {
+			//printf("Input buffer is Empty!\n");
+		}
 	}
-}
+	
 
+}
 
 /*
 1. 소켓 통신으로 아웃풋 버퍼에 있는 msg2를
@@ -356,22 +367,24 @@ void *sending_thread(void *data) {
 	printf("sending thread...\n");
 	int test_count2 = 0;
 	while (1) {
-		if (head < tail) { // 아웃풋 버퍼가 비어있지 않을 때만 실행
+		if (outputHead < outputTail) { // 아웃풋 버퍼가 비어있지 않을 때만 실행
 			// 1.
-			//msg2[0] = outputBuffer[t0][0];
-			//msg2[1] = outputBuffer[t0][1];
-			//msg2[2] = outputBuffer[t0][2];
-			//printf("[current outputHead and outputTail : %d, %d], %lld, %lld, %lld\n", outputHead, outputTail, msg2[0], msg2[1], msg2[2]);
-
+			int t0 = outputHead++;
+			msg2[0] = outputBuffer[t0][0];
+			msg2[1] = outputBuffer[t0][1];
+			msg2[2] = outputBuffer[t0][2];
+			printf("[current outputHead and outputTail : %d, %d], %lld, %lld, %lld\n", outputHead, outputTail, msg2[0], msg2[1], msg2[2]);
 			// 2.
 			//if (-1 == write(sock, msg2, sizeof(msg2)))
 			//	error_handling("msg2 write() error");
 			//write(sock, &msg2[0], sizeof(msg2[0]));
 			//write(sock, &msg2[1], sizeof(msg2[1]));
 			//write(sock, &msg2[2], sizeof(msg2[2]));
-			cal();
-			write(sock, msg, sizeof(msg));
-			test_count2 = 0;
+
+			write(sock, msg2, sizeof(msg2));
+			//usleep(1);
+			//temp = 1;
+			usleep(1);
 			/*
 			inputBuffer[inputTail] = msg2[1];
 			printf("inputTail : %d\n", inputTail);
@@ -392,7 +405,6 @@ void *sending_thread(void *data) {
 
 	}
 }
-
 
 int main(int argc, char *argv[]) {
 	mask[0]=1;
@@ -419,7 +431,6 @@ int main(int argc, char *argv[]) {
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
 		error_handling("connect() error");
 	printf("Connection established\n");
-	
 	// 여기까지 됐으면, 메인 파이와 소켓 소켈 연결은 수립된 거임.
 	//msg2[0]=1000;
 	//write(sock, msg2, sizeof(msg2));	

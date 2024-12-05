@@ -382,11 +382,11 @@ int main(int argc, char **argv) {
 	mask[0]=1;
 	for(int i = 1; i < 24; i++)
 		mask[i] = mask[i-1]*6;
-	//led_breathing();
+	led_breathing();
 
 
 	// 소켓 연결을 위한 코드들
-	
+	/*
 	struct sockaddr_in serv_addr;
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
@@ -441,7 +441,7 @@ int main(int argc, char **argv) {
 	pthread_join(p_thread[2], (void **)&status);
 
 	while(!fin);
-
+	*/
 	close(sock);
 
 

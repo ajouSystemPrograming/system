@@ -12,8 +12,7 @@
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
 #define VALUE_MAX 256
-#define MAX_BUFFER 5000000
-#define fin 0
+int fin = 0;
 int temp;
 
 #define IN 0
@@ -23,7 +22,8 @@ int temp;
 
 #define POUT 23 // 초음파센서
 #define PIN 24 // 초음파센서
-#define POUT2 16 // LED
+//#define POUT2 16 // LED/
+#define PWM 0
 //#define POUT 21 // 버튼
 //#define PIN 20 // 버튼
 
@@ -32,9 +32,9 @@ int sock;
 //int msg[2]; 테스트용
 //long long msg1; // receive 1
 //long long msg2[3]; // send 1
-long long msg1; // receive many
-long long msg2[3]; // send many
-
+//long long msg1; // receive many
+//long long msg2[3]; // send many
+long long msg[3000][3];
 /*
 long long temp_input[100] = {
 		473911131457577840,
@@ -55,12 +55,10 @@ long long temp_input[100] = {
 
 
 // 인풋 버퍼와 아웃풋 버퍼
-long long inputBuffer[MAX_BUFFER];
-long long outputBuffer[MAX_BUFFER][3];
-int inputHead;
-int inputTail;
-int outputHead;
-int outputTail;
+//long long inputBuffer[MAX_BUFFER];
+long long buffer[5000][1000];
+int head;
+int tail;
 static long long mask[24];
 //에러 핸들링 및 GPIO 연결 함수들
 void error_handling(char *message) {
@@ -163,12 +161,96 @@ static int GPIOWrite(int pin, int value) {
 		return (0);
 	}
 }
-// 거리에 따라 led를 점등시키는 함수
+static int PWMExport(int pwmnum) {
 
+  char buffer[BUFFER_MAX];
+  int fd, byte;
+
+  // TODO: Enter the export path.
+  fd = open("/sys/class/pwm/pwmchip0/export", O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open export for export!\n");
+    return (-1);
+  }
+
+  byte = snprintf(buffer, BUFFER_MAX, "%d", pwmnum);
+  write(fd, buffer, byte);
+  close(fd);
+
+  sleep(1);
+
+  return (0);
+}
+static int PWMEnable(int pwmnum) {
+  static const char s_enable_str[] = "1";
+
+  char path[DIRECTION_MAX];
+  int fd;
+
+  // TODO: Enter the enable path.
+  snprintf(path, DIRECTION_MAX, "/sys/class/pwm/pwmchip0/pwm0/enable", pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in enable!\n");
+    return -1;
+  }
+
+  write(fd, s_enable_str, strlen(s_enable_str));
+  close(fd);
+
+  return (0);
+}
+static int PWMWritePeriod(int pwmnum, int value) {
+  char s_value_str[VALUE_MAX];
+  char path[VALUE_MAX];
+  int fd, byte;
+
+  // TODO: Enter the period path.
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/pwm0/period", pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in period!\n");
+    return (-1);
+  }
+  byte = snprintf(s_value_str, VALUE_MAX, "%d", value);
+
+  if (-1 == write(fd, s_value_str, byte)) {
+    fprintf(stderr, "Failed to write value in period!\n");
+    close(fd);
+    return -1;
+  }
+  close(fd);
+
+  return (0);
+}
+static int PWMWriteDutyCycle(int pwmnum, int value) {
+  char s_value_str[VALUE_MAX];
+  char path[VALUE_MAX];
+  int fd, byte;
+
+  // TODO: Enter the duty_cycle path.
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/pwm0/duty_cycle", pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in duty cycle!\n");
+    return (-1);
+  }
+  byte = snprintf(s_value_str, VALUE_MAX, "%d", value);
+
+  if (-1 == write(fd, s_value_str, byte)) {
+    fprintf(stderr, "Failed to write value in duty cycle!\n");
+    close(fd);
+    return -1;
+  }
+  close(fd);
+
+  return (0);
+}
+// 거리에 따라 led를 점등시키는 함수
 int led_breathing() {
 
 	// Enable GPIO pins
-	if (-1 == GPIOExport(POUT) || -1 == GPIOExport(PIN) || -1 == GPIOExport(POUT2)) {
+	if (-1 == GPIOExport(POUT) || -1 == GPIOExport(PIN)) {
 		printf("gpio export err\n");
 		return (1);
 	}
@@ -176,11 +258,32 @@ int led_breathing() {
 	usleep(100000);
 
 	// Set GPIO directions
-	if (-1 == GPIODirection(POUT, OUT) || -1 == GPIODirection(PIN, IN) || -1 == GPIODirection(POUT2, OUT)) {
+	if (-1 == GPIODirection(POUT, OUT) || -1 == GPIODirection(PIN, IN)) {
 		printf("gpio direction err\n");
 		return (2);
 	}
+	
+	if (-1 == PWMExport(PWM)) {
+		printf("PWM export err\n");
+		return (4);
+	}
+	// wait for writing to export file
+	usleep(100000);
+	if (-1 == PWMWritePeriod(PWM, 10000000)) {
+		printf("PWM period err\n");
+		return (5);
+	}
+	usleep(10000);
 
+	if (-1 == PWMWriteDutyCycle(PWM, 0)) {
+		printf("PWM duty cycle err\n");
+		return (6);
+	}
+	if (-1 == PWMEnable(PWM)) {
+		printf("PWM duty cycle err\n");
+		return (7);
+	}
+	
 	// init ultrawave trigger
 	GPIOWrite(POUT, 0);
 	usleep(10000);
@@ -190,6 +293,15 @@ int led_breathing() {
 	double distance = 0;
 
 	while(1) {
+		int isPic = 0; // 카메라 파이에서 사진을 찍었는지 여부를 확인하기 위한 숫자.
+		if (-1 == read(sock, &isPic, sizeof(isPic)))
+			error_handling("pic read() error");
+		if (read) {
+			printf("Picture is captured.\nStop sensoring distance.\n");
+			return 0;
+		}
+
+
 		if (-1 == GPIOWrite(POUT, 1)) {
 			printf("gpio write/trigger err\n");
 			return (3);
@@ -209,30 +321,41 @@ int led_breathing() {
 		time = (double)(end_t - start_t) / CLOCKS_PER_SEC;  // ms
 		printf("time : %.4lf\n", time);
 		distance = time / 2 * 34000;
+		
 		printf("distance : %.2lfcm\n", distance);
+		if (-1 == write(sock, &distance, sizeof(distance)))
+			error_handling("distance write() error");
+		
+		// '가장 최적의 거리'일 때를 20~30cm이라 하자.
+		if (distance < 0) { // ~ 0
+			printf("@@Sensor err! Distance should be positive\n");
+			PWMWriteDutyCycle(PWM, 00000);
+			
+		} else if (distance >= 40.00) { // 40 ~ 50
+			printf("@@Please put it clooooser\n");
+			PWMWriteDutyCycle(PWM, 00000);
 
-		/* 
-		distance에 따른 led 출력 여부 결정
-		거리가 5cm ~ 15cm 일 때만 led 점등
-		*/
-		if (distance < 5.00) {
-			printf("Please put it farther\n");
-			GPIOWrite(POUT2, 0);
-		} else if (distance > 15.00) {
-			printf("Please put it closer\n");
-			GPIOWrite(POUT2, 0);
-		} else {
-			printf("Proper distance\n");
-			GPIOWrite(POUT2, 1);
-			pthread_exit(NULL);
-		}
+		} else if (distance < 20) { // 0 ~ 20
+			printf("@@Please put it farther\n");
+			PWMWriteDutyCycle(PWM, distance * 150000);
+			
+		} else if (distance < 30){ // 20 ~ 30
+			printf("@@Proper distance!!\n");
+			PWMWriteDutyCycle(PWM, 10000000);
+			
+		} else if (distance >= 30.00) { // 30 ~ 50
+			printf("@@Please put it closer\n");
+			PWMWriteDutyCycle(PWM, (50 - distance) * 150000);
+		} 
+		
+	
 		
 
-		usleep(2000000);
+		usleep(1000000);
 	}
 
 	// Disable GPIO pins
-	if (-1 == GPIOUnexport(POUT) || -1 == GPIOUnexport(PIN) || 1 == GPIOUnexport(POUT2)) return (4);
+	if (-1 == GPIOUnexport(POUT) || -1 == GPIOUnexport(PIN)) return (4);
 
 	printf("complete\n");
 }
@@ -295,25 +418,22 @@ long long Z(long long l0){
 
 void cal() {
     long long l0;
-	int t0 = inputHead++;
-	l0 = inputBuffer[t0];
-	outputBuffer[outputTail][0] = l0;
-	outputBuffer[outputTail][1] = X(l0);
-	outputBuffer[outputTail][2] = 0;
-	outputTail++;
-	//usleep(500 * 100);
-	//printf("[l0 :%lld, X(l0) : %lld, Y(l0) : %lld, Z(l0) : %lld]\n", l0, outputBuffer[outputTail-1][1], Y(l0), Z(l0));
-	outputBuffer[outputTail][0] = l0;
-	outputBuffer[outputTail][1] = Y(l0);
-	outputBuffer[outputTail][2] = 1;
-	outputTail++;
-	//usleep(500 * 100);
-	
-	outputBuffer[outputTail][0] = l0;
-	outputBuffer[outputTail][1] = Z(l0);
-	outputBuffer[outputTail][2] = 2;
-	outputTail++;
-	
+	for(int i = 0; i < 1000; i++)
+	{
+		buffer[head][i] = l0;
+		msg[i*3][0] = l0;
+		msg[i*3][1] = X(l0);
+		msg[i*3][2] = 0;
+		
+		msg[i*3+1][0] = l0;
+		msg[i*3+1][1] = Y(l0);
+		msg[i*3+1][2] = 1;
+
+		msg[i*3+2][0] = l0;
+		msg[i*3+2][1] = Z(l0);
+		msg[i*3+2][2] = 2;
+	}
+	head++;
 	//usleep(500 * 100);
 }
 
@@ -333,27 +453,21 @@ void *receiving_thread(void *data) {
 	int k = 0;
 	//
 	int test_count1;
-	while(1){
+	while(!fin){
 			// 1.
-		if (-1 == read(sock, &msg1, sizeof(msg1)))
+		if (-1 == read(sock, buffer[tail], sizeof(buffer[0])))
 			error_handling("msg1 read() error");
+			if(buffer[tail][0]==-1)
+			{
+				fin = 1;
+				//exit
+			}
 		k=0;
 		//printf("%lld\n", msg1);
-		if (-1 == msg1)
+		if (-1 == buffer[tail])
 			pthread_exit(NULL);
-		if (msg1) { // 받은 값이 초기값인 0 이라면 실행하지 않음.
-			printf("[Receive message from Server : %lld]\n",  msg1); 
-			// 2.
-			inputBuffer[inputTail] = msg1;
-			inputTail++;
-			cal();
-			printf("[current inputHead and inputTail : %d, %d]\n\n", inputHead, inputTail);
-		} else {
-			//printf("Input buffer is Empty!\n");
-		}
+		tail++;
 	}
-	
-
 }
 
 
@@ -368,24 +482,22 @@ void *sending_thread(void *data) {
 	printf("sending thread...\n");
 	int test_count2 = 0;
 	while (1) {
-		if (outputHead < outputTail) { // 아웃풋 버퍼가 비어있지 않을 때만 실행
+		if (head < tail) { // 아웃풋 버퍼가 비어있지 않을 때만 실행
 			// 1.
-			int t0 = outputHead++;
-			msg2[0] = outputBuffer[t0][0];
-			msg2[1] = outputBuffer[t0][1];
-			msg2[2] = outputBuffer[t0][2];
-			printf("[current outputHead and outputTail : %d, %d], %lld, %lld, %lld\n", outputHead, outputTail, msg2[0], msg2[1], msg2[2]);
+			//msg2[0] = outputBuffer[t0][0];
+			//msg2[1] = outputBuffer[t0][1];
+			//msg2[2] = outputBuffer[t0][2];
+			//printf("[current outputHead and outputTail : %d, %d], %lld, %lld, %lld\n", outputHead, outputTail, msg2[0], msg2[1], msg2[2]);
+
 			// 2.
 			//if (-1 == write(sock, msg2, sizeof(msg2)))
 			//	error_handling("msg2 write() error");
 			//write(sock, &msg2[0], sizeof(msg2[0]));
 			//write(sock, &msg2[1], sizeof(msg2[1]));
 			//write(sock, &msg2[2], sizeof(msg2[2]));
-
-			write(sock, msg2, sizeof(msg2));
-			//usleep(1);
-			//temp = 1;
-			usleep(1);
+			cal();
+			write(sock, msg, sizeof(msg));
+			test_count2 = 0;
 			/*
 			inputBuffer[inputTail] = msg2[1];
 			printf("inputTail : %d\n", inputTail);
@@ -393,7 +505,7 @@ void *sending_thread(void *data) {
 			*/
 			
 			
-			printf("Sending message to Server : %lld, %lld\n\n", msg2[0], msg2[1]);
+			//printf("Sending message to Server : %lld, %lld\n\n", msg2[0], msg2[1]);
 		} else {
 			//printf("Output buffer is Empty!\n");
 		}
@@ -407,11 +519,11 @@ void *sending_thread(void *data) {
 	}
 }
 
+
 int main(int argc, char *argv[]) {
 	mask[0]=1;
 	for(int i = 1; i < 24; i++)
 		mask[i] = mask[i-1]*6;
-	//led_breathing();
 	
 	// 소켓 연결을 위한 코드들
 	
@@ -432,9 +544,11 @@ int main(int argc, char *argv[]) {
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
 		error_handling("connect() error");
 	printf("Connection established\n");
-	// 여기까지 됐으면, 메인 파이와 소켓 소켈 연결은 수립된 거임.
-	//msg2[0]=1000;
-	//write(sock, msg2, sizeof(msg2));	
+	
+	// 초음파센서 값 전달
+	if (0 == led_breathing()) {
+		printf("led_breathing completed.\n");
+	}
 	
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[3];
