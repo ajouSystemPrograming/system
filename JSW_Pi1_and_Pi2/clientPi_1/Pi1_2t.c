@@ -264,7 +264,7 @@ void *receiving_thread(void *data) {
 		int t1 = read(sock, rec_buf, sizeof(rec_buf));
 		if (-1 == t1) 
 			error_handling("msg1 read() error");
-		printf("t1 : %d\n", t1);
+		//printf("t1 : %d\n", t1);
 		if (-1 == rec_buf[0]) {
 			printf("-1 is received\n");
 			exit(0);
@@ -275,7 +275,7 @@ void *receiving_thread(void *data) {
 
 		k=0;
 		tail++;
-		printf("tail : %d\n", tail);
+		//printf("tail : %d\n", tail);
 		
 	}
 }
@@ -306,11 +306,11 @@ void *sending_thread(void *data) {
 			
 			int t0 = 0;
 			t0 = write(sock, msg, sizeof(msg));
-			printf("%d\n", t0);
+			//printf("%d\n", t0);
 			usleep(1000);
 			test_count2 = 0;
 			
-			printf("head : %d\n\n", head);
+			//printf("head : %d\n\n", head);
 		} else {
 	
 		}
