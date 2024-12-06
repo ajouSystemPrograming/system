@@ -36,11 +36,11 @@ int init_socket(char *argv_1, char *argv_2) {
 		error_handling("connect() error");
 
 	printf("Connection established\n");
-
+	/*
 	// read/write to initialize connection
 	write(sock, &buffer, sizeof(char));
 	read(sock, &buffer, sizeof(char));
-
+	*/
 	return 0;
 }
 
