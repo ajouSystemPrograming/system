@@ -1204,13 +1204,13 @@ int main(int argc, char *argv[]) {
 
     }
 
-    
+    printf("tail: %d\n",tail);
 
     if(!fin) {
 
         clock_t t = clock();
 
-        for(i0 = 0; i0 < 10; i0++) {
+        for(i0 = 0; i0 < 5; i0++) {
 
             for(i1 = 0; i1 < PI_MAX; i1++) {
 
@@ -1232,7 +1232,13 @@ int main(int argc, char *argv[]) {
 
                 t0 = read(clnt_sock[i0], msg, sizeof(msg));
 
-                //printf("read Len : %d\n", t0);
+                int t1 = 0;
+
+                int t2 = t1;
+
+                int t3 = t2;
+
+                //printf("t0: %d %d %lld\n",i0, t0, sizeof(msg));
 
                 if(t0 > 0) {
 
@@ -1260,22 +1266,6 @@ int main(int argc, char *argv[]) {
 
     int sp = 0;
 
-    decode(l0);
-
-    for(int i = 0; i < 13; i++)
-
-    {
-
-        for(int j = 0; j < 17; j++)
-
-            printf("%c",tochar[cube[i][j]]);
-
-        printf("\n");
-
-    }
-
-    printf("============================\n");
-
     while(contains(l0)->pre>0)
 
     {
@@ -1283,22 +1273,6 @@ int main(int argc, char *argv[]) {
         stack[sp++] = contains(l0)->rot;
 
         l0 = contains(l0)->pre;
-
-    decode(l0);
-
-    for(int i = 0; i < 13; i++)
-
-    {
-
-        for(int j = 0; j < 17; j++)
-
-            printf("%c",tochar[cube[i][j]]);
-
-        printf("\n");
-
-    }
-
-    printf("============================\n");
 
     }
 
