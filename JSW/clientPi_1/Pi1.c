@@ -12,18 +12,20 @@
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
 #define VALUE_MAX 256
-int fin = 0;
-int temp;
 #define IN 0
 #define OUT 1
 #define LOW 0
 #define HIGH 1
 #define POUT 23 // 초음파센서
 #define PIN 24 // 초음파센서
-#define POUT2 16 // LED
+#define PWM 0
+#define SIZE 10 // sending and receiving buffer size
+
+int fin = 0;
+int temp;
 int sock;
-long long rec_buf[10];
-long long buffer[500000][10];
+long long rec_buf[SIZE];
+long long buffer[500000][SIZE];
 int head;
 int tail;
 static long long mask[24];
@@ -252,6 +254,7 @@ long long Z(long long l0){
     l0+=l1*mask[6];
     return l0;
 }
+
 void *receiving_thread(void *data) {
 	//
 	printf("receiving thread...\n");
@@ -261,18 +264,15 @@ void *receiving_thread(void *data) {
 	int test_count1;
 	while(!fin){
 			// 1. 5000 x 1000 
-		int t1 = read(sock, rec_buf, sizeof(rec_buf));
+		int t1 = read(sock, buffer[tail], sizeof(buffer[tail]));
 		if (-1 == t1) 
 			error_handling("msg1 read() error");
 		//printf("t1 : %d\n", t1);
-		if (-1 == rec_buf[0]) {
+		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
 			exit(0);
 		}
-		for(int i = 0; i < 10; i++) {
-			buffer[tail][i] = rec_buf[i];
-		}
-
+		
 		k=0;
 		tail++;
 		//printf("tail : %d\n", tail);
@@ -286,9 +286,9 @@ void *sending_thread(void *data) {
 		if (head < tail) { 
 			
 			
-			long long msg[40]; // 원본 
+			long long msg[SIZE*4]; // 원본 
 			long long l0;
-			for(int i = 0; i < 10; i++)
+			for(int i = 0; i < SIZE; i++)
 			{
 				l0 = buffer[head][i];
 				if(l0==0)
@@ -318,6 +318,7 @@ void *sending_thread(void *data) {
 	
 	}
 }
+
 int main(int argc, char *argv[]) {
 	mask[0]=1;
 	for(int i = 1; i < 24; i++)

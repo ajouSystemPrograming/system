@@ -161,6 +161,7 @@ static int GPIOWrite(int pin, int value) {
 		return (0);
 	}
 }
+
 static int PWMExport(int pwmnum) {
 
   char buffer[BUFFER_MAX];
@@ -246,6 +247,7 @@ static int PWMWriteDutyCycle(int pwmnum, int value) {
 
   return (0);
 }
+
 // 거리에 따라 led를 점등시키는 함수
 int led_breathing() {
 
@@ -297,7 +299,7 @@ int led_breathing() {
 		if (-1 == read(sock, &isPic, sizeof(isPic)))
 			error_handling("pic read() error");
 		if (read) {
-			printf("Picture is captured.\nStop sensoring distance.\n");
+			printf("Picture is captured.\nStop sensoring distance.\n")
 			return 0;
 		}
 
@@ -524,6 +526,9 @@ int main(int argc, char *argv[]) {
 	mask[0]=1;
 	for(int i = 1; i < 24; i++)
 		mask[i] = mask[i-1]*6;
+	if (0 == led_breathing()) {
+		printf("led_breathing completed.\n");
+	}
 	
 	// 소켓 연결을 위한 코드들
 	
@@ -544,11 +549,6 @@ int main(int argc, char *argv[]) {
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
 		error_handling("connect() error");
 	printf("Connection established\n");
-	
-	// 초음파센서 값 전달
-	if (0 == led_breathing()) {
-		printf("led_breathing completed.\n");
-	}
 	
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[3];
