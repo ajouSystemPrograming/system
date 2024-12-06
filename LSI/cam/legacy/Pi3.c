@@ -66,20 +66,22 @@ int init(char *argv_1, char *argv_2) {
 
 /* step 1: camera sensing & processing */
 int process_cube(void) {
-	char *msg;
-	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
-		while(TRUE) {
-			if(msg=="OK") { // wait until read the signal
-				break;
-			}
-		}
+	char msg, 
+	     for(pl=0; pl<6; pl++) { // for 6 planes of the cube
+		     while(TRUE) {
+			     int t0 = read(sock, &msg, sizeof(msg));
+			     if(t0 < 0) continue; // misread
+			     if(t0 == 0); // disconnected case - reboot	
+			     if(msg=='o') { // wait until read the signal
+				     break;
+			     }
+		     }
+		     capture(); // capture cube plane image
+		     process_image(); // get colors for the cube plane and apply to cube planar
 
-		capture(); // capture cube plane image
-		process_image(); // get colors for the cube plane and apply to cube planar
+		     write(sock, &buffer, sizeof(char)); // alert ready for next sign
 
-		write(sock, &buffer, sizeof(char)); // alert ready for next sign
-
-	}
+	     }
 
 	long long l0 = encode();
 
@@ -93,7 +95,7 @@ int process_cube(void) {
 int task(void) {
 	while(TRUE) {
 		if(msg=="OK") { // wait until read the signal
-			// do something
+				// do something
 		}
 	}
 
@@ -105,7 +107,7 @@ int task(void) {
 int actuate(void) {
 	while(TRUE) {
 		if(msg=="OK") { // wait until read the signal
-			// do something
+				// do something
 		}
 	}
 
