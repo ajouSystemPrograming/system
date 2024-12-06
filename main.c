@@ -850,6 +850,32 @@ int piindex[PI_MAX][5000000];
 
 int st[PI_MAX], en[PI_MAX];
 
+
+
+static int connectPI(int num) {
+
+    if (clnt_sock[num] < 0) {
+
+        clnt_addr_size[num] = sizeof(clnt_addr[num]);
+
+        clnt_sock[num] = accept(serv_sock, (struct sockaddr *)&clnt_addr[num], &clnt_addr_size[num]);
+
+        if (clnt_sock[num] == -1) error_handling("accept() error");
+
+        int flag = fcntl(clnt_sock[num], F_GETFL);
+
+        //int flag = fcntl(serv_sock, F_GETFL);
+
+        fcntl(clnt_sock[num], F_SETFL, flag | O_NONBLOCK);
+
+        printf("Connection established %d %d\n", O_NONBLOCK,flag);
+
+    }
+
+}
+
+
+
 void process2(int num) {
 
     int i0, i1;
@@ -978,29 +1004,13 @@ int main(int argc, char *argv[]) {
 
     for(i0 = 0; i0 < PI_MAX; i0++)
 
-    {        
+    {
 
-        if (clnt_sock[i0] < 0) {
-
-            clnt_addr_size[i0] = sizeof(clnt_addr[i0]);
-
-            clnt_sock[i0] = accept(serv_sock, (struct sockaddr *)&clnt_addr[i0], &clnt_addr_size[i0]);
-
-            if (clnt_sock[i0] == -1) error_handling("accept() error");
-
-        }
-
-        int flag = fcntl(clnt_sock[i0], F_GETFL);
-
-        //int flag = fcntl(serv_sock, F_GETFL);
-
-        fcntl(clnt_sock[i0], F_SETFL, flag | O_NONBLOCK);
-
-        printf("Connection established %d %d\n", O_NONBLOCK,flag);
+        connectPI(i0);
 
     }
 
-    //
+    //step1
 
     for(int i = 0; i < 13; i++)
 
@@ -1014,21 +1024,107 @@ int main(int argc, char *argv[]) {
 
     }
 
-    while(1)//change cube using button
+    
 
-    {
+    int c0, count = 0;
+
+    c0 = 2;
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+                                usleep(5000*1000);
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+                                usleep(5000*1000);
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+                                usleep(5000*1000);
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+                                usleep(5000*1000);
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+                                usleep(5000*1000);
+
+                                write(clnt_sock[0], &c0, sizeof(c0));
+
+            
+
+    while(1) {//change cube using button
 
         buttonState = ButtonInput();
 
         int print = 0;
 
-        if(!(preState & (1 << 4)) && buttonState & (1 << 4))
+        for(i0 = 0; i0 < PI_MAX; i0++) {
 
-        {
+            t0 = read(clnt_sock[i0], &c0, sizeof(c0));
 
-            if(cube[r][c]<6)
+            if(t0 > 0) {
 
-            {
+                switch(c0&3) {
+
+                    case 0:
+
+                        break;
+
+                    case 1:
+
+                        t0 = -1;
+
+                        while(t0 <= 0) {
+
+                            t0 = read(clnt_sock[i0], &c0, sizeof(c0));
+
+                            c0 = 2;
+
+                            for(i1 = 0; i1 < 3; i1++)
+
+                                write(clnt_sock[i1], &c0, sizeof(c0));
+
+                            usleep(1000*1000);
+
+                        }
+
+                        break;
+
+                    case 2:
+
+                        t0 = -1;
+
+                        while(t0 <= 0) {
+
+                            t0 = read(clnt_sock[i0], &l0, sizeof(l0));
+
+                        }
+
+                        printf("get 2 %lld\n",l0);
+
+                        decode(l0);
+
+                        break;
+
+                }
+
+                if((c0&3)==2) {
+
+                }
+
+            }
+
+        }
+
+        
+
+        //
+
+        if(!(preState & (1 << 4)) && buttonState & (1 << 4)) {
+
+            if(cube[r][c]<6) {
 
                 cube[r][c] = (cube[r][c]+1) % 6;
 
@@ -1042,13 +1138,11 @@ int main(int argc, char *argv[]) {
 
         }
 
-        else
-
-        {
+        else {
 
             for(i0 = 0; i0 < 4; i0++)
 
-                if(!(preState & (1 << i0)) && buttonState & (1 << i0)){
+                if(!(preState & (1 << i0)) && buttonState & (1 << i0)) {
 
                     r += move[i0][0]<<1;
 
@@ -1099,6 +1193,16 @@ int main(int argc, char *argv[]) {
     use[cube[order[20][0]][order[20][1]]] = 1;
 
     make(0);
+
+    printf("start: %lld\n", l0);
+
+    c0 = -1;
+
+    for(i0 = 0; i0 < PI_MAX; i0++) {
+
+        write(clnt_sock[i0], &c0, sizeof(c0));
+
+    }
 
     for(i0 = 0; i0 < 2000; i0++)
 
@@ -1205,6 +1309,8 @@ int main(int argc, char *argv[]) {
     }
 
     printf("tail: %d\n",tail);
+
+    
 
     if(!fin) {
 
