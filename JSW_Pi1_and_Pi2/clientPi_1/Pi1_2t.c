@@ -324,7 +324,6 @@ int main(int argc, char *argv[]) {
 	//led_breathing();
 	
 	// 소켓 연결을 위한 코드들
-	
 	struct sockaddr_in serv_addr;
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
@@ -344,23 +343,16 @@ int main(int argc, char *argv[]) {
 	printf("Connection established %d\n",sizeof(buffer[0]));
 	
 	int flag = fcntl(sock, F_GETFL);
-	//printf("flag : %d\n", flag);
-	// 여기까지 됐으면, 메인 파이와 소켓 소켈 연결은 수립된 거임.
-	//msg2[0]=1000;
-	//write(sock, msg2, sizeof(msg2));	
 	
 	// 이제 쓰레드 실행을 위한 코드들
-	pthread_t p_thread[3];
+	pthread_t p_thread[2];
 	int thr_id;
 	int thr_id2;
-	int thr_id3;
 	int status;
 	char p1[] = "receiving_thread";
 	char p2[] = "sending_thread";
-	char pM[] = "calculating_thread";
 
 	// 쓰레드 예외처리
-	//thr_id = pthread_create(&p_thread[0], NULL, receiving_thread, (void *)p1);
 	thr_id = pthread_create(&p_thread[0], NULL, receiving_thread, NULL);
 	if (thr_id < 0) {
 		perror("reveiving_thread created error : ");
@@ -371,17 +363,8 @@ int main(int argc, char *argv[]) {
 		perror("sending_thread created error : ");
 		exit(0);
 	}
-	/*
-	 * thr_id3 = pthread_create(&p_thread[2], NULL, cal, NULL);
-	if (thr_id3 < 0) {
-		perror("reveiving_thread created error : ");
-		exit(0);
-	}
-	*/
-	//cal();
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
-	//pthread_join(p_thread[2], (void **)&status);
 
 	close(sock);
 
