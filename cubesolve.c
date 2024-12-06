@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <pthread.h>
+#include <time.h>
 
 #define IN 0
 #define OUT 1
@@ -30,19 +31,19 @@
 #define BUFFER_MAX 5000000
 
 //test========================================================
-static char cube[13][17] = {
-	{7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,8,7,7,7,5,7,1,7,7,7,7,7,7,7,7,7},
+static char cube[13][17]={
+    {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
+    {7,8,7,7,7,4,7,3,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,4,7,3,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,2,7,5,7,2,7,0,7,1,7,5,7,4,7,0,7},
+    {7,0,7,0,7,1,7,4,7,2,7,2,7,5,7,3,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,4,7,4,7,1,7,0,7,2,7,1,7,5,7,2,7},
+    {7,0,7,0,7,1,7,4,7,2,7,2,7,5,7,3,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,3,7,3,7,7,7,7,7,7,7,7,7},
+    {7,7,7,7,7,5,7,1,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7},
-    {7,7,7,7,7,3,7,0,7,7,7,7,7,7,7,7,7},
+    {7,7,7,7,7,5,7,1,7,7,7,7,7,7,7,7,7},
     {7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7}
 };
 //adding
@@ -416,11 +417,13 @@ void make(int x)
 int main(int argc, char *argv[]) {
     int pre, r = 5, c = 1, preState=0, buttonState=0;
     int i0, i1, t0, t1;
-    long long l0;
+    long long l0 = 4271069981394162510;
     int status, thr_id;
 	if(init())
         return 1;
+    decode(l0);
     printCube(5,1);
+    /*
     while(1){//change cube using button
         buttonState = ButtonInput();
         int print = 0;
@@ -447,8 +450,10 @@ int main(int argc, char *argv[]) {
         preState = buttonState;
         usleep(500*100);
     }
+    */
     outputBuffer[outputTail++] = encode();
     addmap(encode(),-1,0);
+    printf("%lld\n",encode());
     //
     
     for(i0 = 0; i0 < 4; i0++)
@@ -462,21 +467,24 @@ int main(int argc, char *argv[]) {
     use[cube[order[20][0]][order[20][1]]] = 1;
     make(0);
     printf("ING %d\n",qp);
+    clock_t t = clock();
     long long l1;
+    int count = 0;
     while(outputHead<BUFFER_MAX)
     {
+		count++;
         l0 = outputBuffer[outputHead++];
-        for(i0 = 0; i0 < qp; i0++)
-			if(l0==q[i0])
-				break;
-		if(i0!=qp)
-			break;
 		l1 = X(l0);
 		if(!contains(l1))
 		{
 			addmap(l1, l0, 0);
 			outputBuffer[outputTail++] = l1;
 		}
+        for(i0 = 0; i0 < qp; i0++)
+			if(l1==q[i0])
+				break;
+		if(i0!=qp)
+			break;
 		
 		l1 = Y(l0);
 		if(!contains(l1))
@@ -484,6 +492,11 @@ int main(int argc, char *argv[]) {
 			addmap(l1, l0, 1);
 			outputBuffer[outputTail++] = l1;
 		}
+        for(i0 = 0; i0 < qp; i0++)
+			if(l1==q[i0])
+				break;
+		if(i0!=qp)
+			break;
 		
 		l1 = Z(l0);
 		if(!contains(l1))
@@ -491,7 +504,16 @@ int main(int argc, char *argv[]) {
 			addmap(l1, l0, 2);
 			outputBuffer[outputTail++] = l1;
 		}
+        for(i0 = 0; i0 < qp; i0++)
+			if(l1==q[i0])
+				break;
+		if(i0!=qp)
+			break;
+		//if(outputHead%1000==0)
+		//printf("%d %d\n",outputHead, outputTail);
     }
+    printf("\ntime: %lf", (double)(clock()-t)/CLOCKS_PER_SEC);
+    printf("count: %d\n", count);
     while(contains(l0)->pre>0)
     {
         printf("%c", tochar[(contains(l0)->rot)+9]);
