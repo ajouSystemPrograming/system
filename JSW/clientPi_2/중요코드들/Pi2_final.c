@@ -303,26 +303,64 @@ int led_breathing() {
 		printf("gpio export err\n");
     	return 1;
 	}
+	
+	usleep(100000);
+
 
 	if (GPIODirection(POUT, OUT) == -1) {
 		printf("gpio direction err\n");
     	return 2;
 	}
-
-	int t0;
-	while (1) {
-		printf("value: %d\n", t0=readadc(fd, 0));
-    if(t0 < PROPER_BRIGHTNESS) // t0은 0 부터 1023 사이 값
-	    GPIOWrite(POUT, 0);
-		pthread_exit(NULL);
-    else
-	    GPIOWrite(POUT, 1);
-	    usleep(10000);
-	}
 	
+	GPIOWrite(POUT, 0);
+	usleep(10000);
+
+	// start
+	int brightness;
+	int one = 1; // 1을 보내기 위한 flag
+	int zero = 0; // 0를 보내기 위한 flag
+	while (1) {
+
+		int isPic = 0; // 카메라 파이에서 사진을 찍었는지 여부를 확인하기 위한 숫자.
+		
+		int t0 = read(sock, &isPic, sizeof(isPic));
+		
+		printf("isPic : %d\n", isPic);
+		if(t0 > 0) { // 뭔가 받았을 때
+			if (isPic < 0) {  // 다음 단계로 넘어가라는 표식
+			printf("Picture is captured. Stopping sensoring distance.\n");
+			return 0;
+			}
+			else { // -1 아니면 내 꺼 아님.
+				printf("It's not for terminating!!\n");
+				continue;
+			}
+		}
+
+		printf("value: %d\n", brightness = readadc(fd, 0));
+		printf("Current brightness : %d\n", brightness)
+		if(brightness < PROPER_BRIGHTNESS) // t0은 0 부터 1023 사이 값
+			printf("@@Set it brighter!!\n");
+			GPIOWrite(POUT, 0);
+			pthread_exit(NULL);
+		else
+			printf("@@Proper brightness!!\n");
+			GPIOWrite(POUT, 1);
+			usleep(10000);
+			if (-1 == write(sock, &zero, sizeof(zero))) // Pi2 임을 알리기 위한 write
+				error_handling("Server is not receiving your zero.\n");
+			if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
+				error_handling("Server is not receiving your brightness.\n");
+
+		usleep(1000000);
+	}
+
+	// Disable GPIO pins
 	if (GPIOUnexport(POUT) == -1) {
     	return 4;
 	}
+	printf("complete\n");
+
 }
 // 메인 함수
 int main(int argc, char *argv[]) {
@@ -354,11 +392,18 @@ int main(int argc, char *argv[]) {
 		error_handling("connect() error");
 	printf("Connection established\n");
 	
-	// 조도센서 값 전달
-	//if (0 == led_breathing()) {
-	//	printf("led_breathing completed.\n");
-	//}
+	int flag = fcntl(sock, F_GETFL); 
+	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
+	// 조도 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
+		
+	// 조도 센서 값 전달
+	if (0 == led_breathing()) {
+		printf("led_breathing completed.\n");
+	}
 	
+	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
+	// 다시 블로킹 모드로 돌아옴.
+
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[2];
 	int thr_id;

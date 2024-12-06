@@ -375,18 +375,23 @@ int led_breathing() {
 	double distance = 0;
 	int one = 1; // 1을 보내기 위한 flag
 	while(1) {
+		
+		
 		int isPic = 0; // 카메라 파이에서 사진을 찍었는지 여부를 확인하기 위한 숫자.
 		
-		if (-1 == read(sock, &isPic, sizeof(isPic)))
-			error_handling("pic read() error");
-		if ((isPic & 0x03) == 0x01) {  // 하위 2비트가 01인지 확인
-			if (isPic & 0x80) {  // 7번 비트가 1인지 확인
-				printf("Picture is captured. Stopping sensoring distance.\n");
-				return 0;
+		int t0 = read(sock, &isPic, sizeof(isPic));
+		
+		printf("isPic : %d\n", isPic);
+		if(t0 > 0) { // 뭔가 받았을 때
+			if (isPic < 0) {  // 다음 단계로 넘어가라는 표식
+			printf("Picture is captured. Stopping sensoring distance.\n");
+			return 0;
+			}
+			else { // -1 아니면 내 꺼 아님.
+				printf("It's not for terminating!!\n");
+				continue;
 			}
 		}
-		// isPic의 0, 1번 비트가 01(10진수로 1)일 때만 받아들이고(아니면 무시)
-		// 이 때, 7번 비트가 1이면 다음단계(즉, return 0;)
 		
 		if (-1 == GPIOWrite(POUT, 1)) {
 			printf("gpio write/trigger err\n");
@@ -408,9 +413,6 @@ int led_breathing() {
 		distance = time / 2 * 34000;
 		
 		printf("distance : %.2lfcm\n", distance);
-		if (-1 == write(sock, &distance, sizeof(distance)))
-			error_handling("distance write() error");
-		
 		// '가장 최적의 거리'일 때를 20~30cm이라 하자.
 		if (distance < 0) { // ~ 0
 			printf("@@Sensor err! Distance should be positive\n");
@@ -427,8 +429,10 @@ int led_breathing() {
 		} else if (distance < 30){ // 20 ~ 30
 			printf("@@Proper distance!!\n");
 			PWMWriteDutyCycle(PWM, 10000000);
-			if (-1 == write(sock, &one, sizeof(one)))
-				error_handling("Server is not receiving your brightness.\n");
+			if (-1 == write(sock, &one, sizeof(one))) // Pi1 임을 알리기 위한 write
+				error_handling("Server is not receiving your one.\n");
+			if (-1 == write(sock, &one, sizeof(one))) // 적정 거리임을 알리기 위한 write
+				error_handling("Server is not receiving your distance.\n");
 			
 		} else if (distance >= 30.00) { // 30 ~ 50
 			printf("@@Please put it closer\n");
@@ -468,10 +472,17 @@ int main(int argc, char *argv[]) {
 		error_handling("connect() error");
 	printf("Connection established\n");
 	
-	// 초음파센서 값 전달
+	int flag = fcntl(sock, F_GETFL); 
+	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
+	// 초음파 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
+		
+	// 초음파 센서 값 전달
 	if (0 == led_breathing()) {
 		printf("led_breathing completed.\n");
 	}
+	
+	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
+	// 다시 블로킹 모드로 돌아옴.
 	
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[2];
