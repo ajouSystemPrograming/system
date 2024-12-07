@@ -383,7 +383,18 @@ void *receiving_thread(void *data) {
 	
 
 }
-
+if (prev_state != state) {
+				printf("state is changed\n");
+				flag_pi1 = 5; // 내 메세지를 받아 달라고 서버에게 전달. 2번째 비트를 1로.
+				if (-1 == write(sock, &flag_pi1, sizeof(flag_pi1))) // Pi1 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi1.\n");
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 거리임을 알리기 위한 write
+					error_handling("Server is not receiving your distance.\n");
+			} else {
+				flag_pi1 = 1; // 내 메세지를 받지 말라고 서버에게 전달. 2번째 비트를 0으로.
+				if (-1 == write(sock, &flag_pi1, sizeof(flag_pi1))) // Pi1 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi1.\n");
+			}
 
 /*
 1. 소켓 통신으로 아웃풋 버퍼에 있는 msg2를

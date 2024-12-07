@@ -23,13 +23,16 @@
 #define POUT 17 // LED OUT
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define PROPER_BRIGHTNESS 500 // 조도센서 적정 밝기 기준값
+#define SIZE 10 // sending and receiving buffer size
 
+#define PWM 0
 int temp;
 int sock;
 long long buffer[5000000/SIZE][SIZE];
 int head;
 int tail;
 static long long mask[24];
+int fin = 0;
 
 //에러 함수
 void error_handling(char *message) {
@@ -70,7 +73,7 @@ static int GPIOUnexport(int pin) {
 	close(fd);
 	return (0);
 }
-static int GPIODirection(int pin, int dir) {#include <arpa/inet.h>
+static int GPIODirection(int pin, int dir) {
 
 	static const char s_directions_str[] = "in\0out";
 
@@ -169,6 +172,137 @@ int readadc(int fd, uint8_t channel) {
 
 	return ((rx[1] << 8) & 0x300) | (rx[2] & 0xFF);
 }
+static int PWMExport(int pwmnum) {
+
+  char buffer[BUFFER_MAX];
+  int fd, byte;
+  char path[VALUE_MAX];
+  // TODO: Enter the export path.
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/export", pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open export for export!\n");
+    return (-1);
+  }
+
+  byte = snprintf(buffer, BUFFER_MAX, "%d", pwmnum);
+  write(fd, buffer, byte);
+  close(fd);
+
+  sleep(1);
+
+  return (0);
+}
+static int PWMEnable(int pwmnum) {
+  static const char s_enable_str[] = "1";
+
+  char path[DIRECTION_MAX];
+  int fd;
+
+  // TODO: Enter the enable path.
+  snprintf(path, DIRECTION_MAX, "/sys/class/pwm/pwmchip0/pwm%d/enable",pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in enable!\n");
+    return -1;
+  }
+
+  write(fd, s_enable_str, strlen(s_enable_str));
+  close(fd);
+
+  return (0);
+}
+static int PWMWritePeriod(int pwmnum, int value) {
+  char s_value_str[VALUE_MAX];
+  char path[VALUE_MAX];
+  int fd, byte;
+
+  // TODO: Enter the period path.
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/pwm%d/period",pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in period!\n");
+    return (-1);
+  }
+  byte = snprintf(s_value_str, VALUE_MAX, "%d", value);
+
+  if (-1 == write(fd, s_value_str, byte)) {
+    fprintf(stderr, "Failed to write value in period!\n");
+    close(fd);
+    return -1;
+  }
+  close(fd);
+
+  return (0);
+}
+static int PWMWriteDutyCycle(int pwmnum, int value) {
+  char s_value_str[VALUE_MAX];
+  char path[VALUE_MAX];
+  int fd, byte;
+
+  // TODO: Enter the duty_cycle path.
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/pwm%d/duty_cycle",pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open in duty cycle!\n");
+    return (-1);
+  }
+  byte = snprintf(s_value_str, VALUE_MAX, "%d", value);
+
+  if (-1 == write(fd, s_value_str, byte)) {
+    fprintf(stderr, "Failed to write value in duty cycle!\n");
+    close(fd);
+    return -1;
+  }
+  close(fd);
+
+  return (0);
+}
+static int PWMUnexport(int pwmnum) {
+  char buffer[BUFFER_MAX];
+  ssize_t bytes_written;
+  int fd;
+  char path[VALUE_MAX];
+  snprintf(path, VALUE_MAX, "/sys/class/pwm/pwmchip0/unexport", pwmnum);
+  fd = open(path, O_WRONLY);
+  if (-1 == fd) {
+    fprintf(stderr, "Failed to open unexport for writing!\n");
+    return (-1);
+  }
+
+  bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pwmnum);
+  write(fd, buffer, bytes_written);
+  close(fd);
+  return (0);
+}
+static int PWMDisable(int pwmnum) {
+   static const char s_enable_str[] = "0";
+
+   char path[DIRECTION_MAX];
+   int fd;
+
+   snprintf(path, DIRECTION_MAX, "/sys/class/pwm/pwmchip0/pwm%d/enable", pwmnum);
+   fd = open(path, O_WRONLY);
+   if (-1 == fd) {
+      fprintf(stderr, "Failed to open in enable!\n");
+      return -1;
+   }
+
+   write(fd, s_enable_str, strlen(s_enable_str));
+   close(fd);
+
+   return (0);
+}
+int spin(int servo, int val) {
+   // PWMEnable(servo);
+   PWMWriteDutyCycle(servo, val);
+   // PWMDisable(servo);
+   usleep(1000000);
+   PWMWriteDutyCycle(servo, 400000);
+   usleep(1000000);
+   return 0;
+}
+
 //큐브를 각 방향으로 돌렸을 때의 결과를 반환해주는 함수 (X, Y, Z가 방향을 의미)
 long long X(long long l0){
     long long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;
@@ -240,7 +374,8 @@ void *receiving_thread(void *data) {
 		//printf("t1 : %d\n", t1);
 		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
-			exit(0);
+			fin = 1;
+			pthread_exit(NULL);
 		}
 		
 		k=0;
@@ -254,7 +389,7 @@ void *receiving_thread(void *data) {
 void *sending_thread(void *data) {
 	printf("sending thread...\n");
 	int test_count2 = 0;
-	while (1) {
+	while (!fin) {
 		if (head < tail) { 
 			
 			long long msg[SIZE*4]; // 원본 
@@ -265,7 +400,7 @@ void *sending_thread(void *data) {
 				if(l0==0)
 				{
 					printf("0->%d %d\n",head,i);
-						break;
+					break;
 				}
 				msg[i*4] = l0;
 				msg[i*4+1] = X(l0);
@@ -285,6 +420,7 @@ void *sending_thread(void *data) {
 		}
 	
 	}
+	pthread_exit(NULL);
 }
 // 밝기에 따라 led를 점등시키는 함수 (성공 시 0 반환)
 int led_breathing() {
@@ -317,14 +453,16 @@ int led_breathing() {
 
 	// start
 	int brightness;
-	int one = 1; // 1을 보내기 위한 flag
-	int zero = 0; // 0를 보내기 위한 flag
+	int prev_state = 0;
+	int state = 0;
+	int flag_pi3 = 3; // 'Pi2' 이라는 걸 알리기 위한 flag
+	int one = 3;
 	while (1) {
 
 		int isPic = 0; // 카메라 파이에서 사진을 찍었는지 여부를 확인하기 위한 숫자.
 		
 		int t0 = read(sock, &isPic, sizeof(isPic));
-		
+		printf("t0 : %d\n", t0);
 		printf("isPic : %d\n", isPic);
 		if(t0 > 0) { // 뭔가 받았을 때
 			if (isPic < 0) {  // 다음 단계로 넘어가라는 표식
@@ -332,26 +470,49 @@ int led_breathing() {
 			return 0;
 			}
 			else { // -1 아니면 내 꺼 아님.
-				printf("It's not for terminating!!\n");
+				printf("It's not for terminating!!\n");		
 				continue;
 			}
 		}
-
+		
 		printf("value: %d\n", brightness = readadc(fd, 0));
-		printf("Current brightness : %d\n", brightness)
-		if(brightness < PROPER_BRIGHTNESS) // t0은 0 부터 1023 사이 값
+		printf("Current brightness : %d\n", brightness);
+		if (brightness < PROPER_BRIGHTNESS) { // t0은 0 부터 1023 사이 값
 			printf("@@Set it brighter!!\n");
 			GPIOWrite(POUT, 0);
-			pthread_exit(NULL);
-		else
+			state = 0;
+			if (1 == prev_state) {
+				printf("state is changed\n");
+				one = 3; // 밝았다가 어두워졌다고 서버에게 전달. 2번째 비트를 0으로.
+				if (-1 == write(sock, &flag_pi3, sizeof(flag_pi3))) // Pi3 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi2.\n");
+				printf("flag_pi3 : %d\n", flag_pi3);
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
+					error_handling("Server is not receiving your brightness.\n");
+				printf("one : %d\n", one);
+			}
+		} else {
 			printf("@@Proper brightness!!\n");
 			GPIOWrite(POUT, 1);
-			usleep(10000);
-			if (-1 == write(sock, &zero, sizeof(zero))) // Pi2 임을 알리기 위한 write
-				error_handling("Server is not receiving your zero.\n");
-			if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
-				error_handling("Server is not receiving your brightness.\n");
-
+			state = 1;
+			if (0 == prev_state) {
+				printf("state is changed\n");
+				one = 7; // 어두웠다가 밝아졌다고 서버에게 전달. 2번째 비트를 1로.
+				if (-1 == write(sock, &flag_pi3, sizeof(flag_pi3))) // Pi3 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi2.\n");
+				printf("flag_pi3 : %d\n", flag_pi3);
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
+					error_handling("Server is not receiving your brightness.\n");
+				printf("one : %d\n", one);
+			} //else {
+				//flag_pi3 = 0; // 내 메시지를 받지 말라고 서버에게 전달. 2번째 비트를 0으로.
+				//if (-1 == write(sock, &flag_pi2, sizeof(flag_pi2))) // Pi2 임을 알리기 위한 write
+				//error_handling("Server is not receiving your flag_pi2.\n");
+			//}
+			
+		
+		}
+		prev_state = state;
 		usleep(1000000);
 	}
 
@@ -362,6 +523,33 @@ int led_breathing() {
 	printf("complete\n");
 
 }
+int actuate(void) {
+	int msg;
+	int sig = 3; // identifier
+
+		  // PWM1 init
+	PWMExport(PWM);
+	PWMWritePeriod(PWM, 10000000);
+	PWMWriteDutyCycle(PWM, 400000);
+	PWMEnable(PWM);
+	
+	while(1) {
+		read(sock,&msg,sizeof(msg));
+		if(msg==-1) // if step 3 finished
+			break;
+		if(msg==3) { // if the command is for mine
+			printf("spin is starting.\n");
+			spin(PWM, 1450000);
+		} else
+			printf("spin is not starting.\n");
+		write(sock,&sig,sizeof(sig)); // always send signal who am I
+	}
+
+	PWMDisable(PWM);
+	PWMUnexport(PWM);
+
+	return 0;
+}
 // 메인 함수
 int main(int argc, char *argv[]) {
 	mask[0]=1;
@@ -369,9 +557,9 @@ int main(int argc, char *argv[]) {
 		mask[i] = mask[i-1]*6;
 		
 	// 테스트 조도센서
-	if (0 == led_breathing()) {
-		printf("led_breathing completed.\n");
-	}
+	//if (0 == led_breathing()) {
+	//	printf("led_breathing completed.\n");
+	//}
 
 	// 소켓 연결을 위한 코드들
 	struct sockaddr_in serv_addr;
@@ -392,6 +580,19 @@ int main(int argc, char *argv[]) {
 		error_handling("connect() error");
 	printf("Connection established\n");
 	
+	int label = 0;
+	read(sock, &label, sizeof(label));
+	switch(label) {
+		case 1:
+			goto STEP1;
+		case 2:
+			goto STEP2;
+		case 3:
+			goto STEP3;
+	}
+	
+STEP1:
+	printf("step 1 start.\n");
 	int flag = fcntl(sock, F_GETFL); 
 	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
 	// 조도 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
@@ -404,6 +605,8 @@ int main(int argc, char *argv[]) {
 	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
 	// 다시 블로킹 모드로 돌아옴.
 
+STEP2:
+	printf("step 2 start.\n");
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[2];
 	int thr_id;
@@ -423,12 +626,16 @@ int main(int argc, char *argv[]) {
 		perror("sending_thread created error : ");
 		exit(0);
 	}
-
+	
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
+	
+STEP3:
+	printf("step 3 start.\n");
+	actuate();
+
+
 
 	close(sock);
-
-
 	return (0);
 }
