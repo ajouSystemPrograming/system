@@ -112,6 +112,7 @@ int capture(void) {
 	// step 9: save the image file
 	int image = open(IMAGE, O_RDWR | O_CREAT, 0666);
 	write(image, buffer, buf.length);
+	printf("Successfully captured!\n");
 
 
 	// step 10: stop streaming 

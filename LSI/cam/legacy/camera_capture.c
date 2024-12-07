@@ -10,6 +10,8 @@
 
 #include <linux/videodev2.h> // v4l2 library header
 
+#include <errno.h> // error analysis
+
 // camera device file path
 #define CAMERA "/dev/video0"
 
@@ -20,8 +22,7 @@
 #define WIDTH 640
 #define HEIGHT 480
 
-/* using camera sensor, capture a image */
-int capture(void) {
+int init(int *fd0) {
 	// step 1: open camera device
 	int fd;
 	fd = open(CAMERA, O_RDWR);
@@ -31,7 +32,6 @@ int capture(void) {
 		fprintf(stderr, "Failed to open camera device!\n");
 		return 1;
 	}
-
 
 	// step 2: capability check
 	struct v4l2_capability caps = {0};
@@ -50,14 +50,24 @@ int capture(void) {
 	fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
 	if (ioctl(fd, VIDIOC_S_FMT, &fmt) == -1) {
-		fprintf(stderr, "Failed to set media formats!\n");
+		perror("Failed to set media formats!\n");
+		//fprintf(stderr, "Failed to set media formats!\n");
 		return 1;
 	}
 
+	*fd0 = fd;
+
+	return 0;
+}
+
+/* using camera sensor, capture a image */
+int capture(int *fd0) {
+
+	int fd = *fd0;
 
 	// step 4: request buffers
 	struct v4l2_requestbuffers req = {0};
-	req.count = 1;
+	req.count = 2;
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_MMAP;
 
@@ -116,7 +126,7 @@ int capture(void) {
 	// step 9: save the image file
 	int image = open(IMAGE, O_RDWR | O_CREAT, 0666);
 	write(image, buffer, buf.length);
-
+	close(image);
 
 	// step 10: stop streaming 
 	if(ioctl(fd, VIDIOC_STREAMOFF, &buf.type) == -1) {
@@ -125,14 +135,18 @@ int capture(void) {
 	}
 
 	// step fin: return
-	close(image);
-	close(fd);
+	//close(image);
+	//close(fd);
 
 	return 0;	
 }
 
 int main(void) {
-	capture();
-
+	int fd;
+	init(&fd);
+	capture(&fd);
+	usleep(1000000);
+	capture(&fd);
+	close(fd);
 	return 0;
 }

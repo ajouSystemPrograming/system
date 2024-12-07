@@ -161,6 +161,7 @@ int process_image(void) {
 		printf("Failed to load image!\n");
 		return 0;
 	}
+	init_image(CENTER_X, CENTER_Y, DIST);
 	process_plane();
 	flip();
 	for(int k=0; k<4; k++) {
