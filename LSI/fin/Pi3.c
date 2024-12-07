@@ -34,9 +34,9 @@ char buff[BUFMAX];
 
 
 /* step 1: camera sensing & processing */
-int process_cube(void) {
+int process_cube(int fd) {
 	int msg; // received from server 
-	int sig = 2; // send to server
+	int sig = 2; // send to server -> 0010 : this pi's id is 2
 
 	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
 		while(TRUE) {
@@ -57,19 +57,18 @@ int process_cube(void) {
 		}
 		printf("aaaa\n");
 		//system("./cap");
-		capture(); // capture cube plane image
+		capture(fd); // capture cube plane image
 		usleep(1000);
 		process_image(); // get colors for the cube plane and apply to cube planar
 		printf("capture & process a plane!\n");
-		// write(sock, &buffer, sizeof(char)); // alert ready for next sign
-
-		system("rm img.jpg");
+		write(sock, &sig, sizeof(msg)); // alert captured, ready for next sign
 		usleep(1000000);
 	}
 
 	long long l0 = encode();
 
 	printf("send! %lld\n", l0);
+	sig += 4; // sig = 0110 -> all planes captured, sending cube planar 
 	write(sock, &sig, sizeof(int)); // send signal first
 	write(sock, &l0, sizeof(long long)); // send cube planar
 	while(1) {
@@ -152,12 +151,14 @@ int main(int argc, char *argv[]) {
 	init_socket(argv[1], argv[2]);
 	init_mask();
 
-
-	process_cube();
+	int fd;
+	fd = init_camera();
+	process_cube(fd);
+	close(fd);
 
 	task();
 
-	// actuate();
+	//actuate();
 
 	// stop();
 	close(sock);
