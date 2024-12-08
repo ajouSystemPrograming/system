@@ -41,7 +41,6 @@ int process_cube(int fd) {
 		while(TRUE) {
 			int t0 = read(sock, &msg, sizeof(msg));
 			//printf("%d\n", t0);
-
 			if(t0 < 0) continue; // misread
 			if(t0 == 0) system("sudo reboot now"); // disconnected case - reboot	
 			int t1=msg;
@@ -55,7 +54,6 @@ int process_cube(int fd) {
 			}
 			else
 				return 0;
-
 		}
 		//printf("aaaa\n");
 		//system("./cap");
@@ -160,6 +158,15 @@ int stop(void) {
 	return 0;
 }
 
+void ctrlC(int sig) {
+	char msg[100];
+	if(sock > 0) {
+		close(sock);
+		exit(0);
+	}
+}
+
+	int fd;
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
@@ -170,6 +177,8 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	signal(SIGINT, ctrlC);
+	
 	init_mask();
 
 	init_socket(argv[1], argv[2]); // network setup
@@ -199,8 +208,8 @@ step3:
 	/* fin */
 	stop();
 	//close(sock);
-
 	//system("sudo reboot now");
+	
 	return 0;
 	
 }
