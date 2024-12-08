@@ -20,6 +20,10 @@
 #include "pixel_extract.h"
 
 
+// ====[SERVO MOTOR CONTROL]====
+#include "servo.h"
+
+
 // =========[MAIN]==========
 #include "cube_solving.h"
 
@@ -41,11 +45,12 @@ int process_cube(int fd) {
 	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
 		while(TRUE) {
 			int t0 = read(sock, &msg, sizeof(msg));
-			
+			printf("%d\n", t0);
+
 			if(t0 < 0) continue; // misread
 			if(t0 == 0); // disconnected case - reboot	
 			int t1=msg;
-			printf("receive %d\n", msg);
+			printf("receive %d, bytes: %d\n", msg, t0);
 			if(msg > 0) { // if not, skip step 1
 				if(msg==2) { // wait until read the signal
 					printf("signal ok\n");
@@ -53,7 +58,9 @@ int process_cube(int fd) {
 				}
 				printf("non zero\n");
 			}
-			
+			else
+				return 0;
+
 		}
 		printf("aaaa\n");
 		//system("./cap");
@@ -61,8 +68,8 @@ int process_cube(int fd) {
 		usleep(1000);
 		process_image(); // get colors for the cube plane and apply to cube planar
 		printf("capture & process a plane!\n");
-		write(sock, &sig, sizeof(msg)); // alert captured, ready for next sign
-		usleep(1000000);
+		usleep(3000000);
+		write(sock, &sig, sizeof(sig)); // alert captured, ready for next sign
 	}
 
 	long long l0 = encode();
@@ -73,7 +80,7 @@ int process_cube(int fd) {
 	write(sock, &l0, sizeof(long long)); // send cube planar
 	while(1) {
 		int t2 = read(sock, &msg, sizeof(msg));
-		if(t2 < 0)
+		if(msg < 0)
 			break;
 
 	}
@@ -115,21 +122,35 @@ int task(void) {
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
 
+	printf("Finished step 2!\n");
+
 	return 0;
 }
 
 
 /* step 3: control servo motor behaviors */
 int actuate(void) {
-	char msg;
+	int msg;
+	int sig = 2; // identifier
+
+	PWMExport(PWM);
+	PWMWritePeriod(PWM, 10000000);
+	PWMWriteDutyCycle(PWM, 400000);
+	PWMEnable(PWM);
 
 	while(TRUE) {
-		if(msg=="OK") { // wait until read the signal
-			break;	// do something
+		read(sock,&msg,sizeof(msg));
+		if(msg==-1) // if step 3 finished
+			break;
+		if(msg==2) { // if the command is for mine
+			printf("read spin message!\n");
+			spin(PWM, 1450000);
 		}
+		write(sock,&sig,sizeof(sig)); // always send signal who am I
 	}
 
-	// do something
+	PWMDisable(PWM);
+	PWMUnexport(PWM);
 
 	return 0;
 }
@@ -143,23 +164,40 @@ int stop(void) {
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
+	int step;
+
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	}
 
-	init_socket(argv[1], argv[2]);
 	init_mask();
 
+	init_socket(argv[1], argv[2]); // network setup
+	read(sock, &step, sizeof(int)); // read current step
+
+	switch(step) {
+		case 1: goto step1;
+		case 2: goto step2;
+		case 3: goto step3;
+	}
+
+	/* step 1 */
 	int fd;
+step1:
 	fd = init_camera();
 	process_cube(fd);
 	close(fd);
 
+step2:
+	/* step 2 */
 	task();
 
-	//actuate();
+step3:
+	/* step 3 */
+	actuate();
 
+	/* fin */
 	// stop();
 	close(sock);
 

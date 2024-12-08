@@ -59,7 +59,9 @@ void *receiving_thread(void *data) {
 		//printf("t1 : %d\n", t1);
 		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
-			exit(0);
+			fin = 1;
+			pthread_exit(NULL);
+			//exit(0);
 		}
 		
 		k=0;
@@ -72,7 +74,7 @@ void *receiving_thread(void *data) {
 void *sending_thread(void *data) {
 	printf("sending thread...\n");
 	int test_count2 = 0;
-	while (1) {
+	while (!fin) {
 		if (head < tail) { 
 			
 			
