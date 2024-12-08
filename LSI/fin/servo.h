@@ -1,6 +1,9 @@
 #ifndef __SERVO_H__
 #define __SERVO_H__
 
+#define MOTOR_0 1450000
+#define MOTOR_90 400000
+
 #define IN 0
 #define OUT 1
 #define PWM 0
@@ -143,7 +146,7 @@ int spin(int servo, int val) {
 	PWMWriteDutyCycle(servo, val);
 	// PWMDisable(servo);
 	usleep(1000000);
-	PWMWriteDutyCycle(servo, 400000);
+	PWMWriteDutyCycle(servo, MOTOR_0);
 	usleep(1000000);
 	return 0;
 }

@@ -146,9 +146,11 @@ static int PWMWriteDutyCycle(int pwmnum, int value) {
 int spin(int servo, int val) {
 	// PWMEnable(servo);
 	PWMWriteDutyCycle(servo, val);
+	printf("%d\n", val);
 	// PWMDisable(servo);
 	usleep(1000000);
 	PWMWriteDutyCycle(servo, MOTOR_0);
+	printf("%d\n", MOTOR_0);
 	usleep(1000000);
 	return 0;
 }
