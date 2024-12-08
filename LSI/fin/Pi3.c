@@ -158,6 +158,7 @@ int stop(void) {
 	return 0;
 }
 
+/*
 void ctrlC(int sig) {
 	char msg[100];
 	if(sock > 0) {
@@ -165,8 +166,7 @@ void ctrlC(int sig) {
 		exit(0);
 	}
 }
-
-	int fd;
+*/
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	signal(SIGINT, ctrlC);
+	//signal(SIGINT, ctrlC);
 	
 	init_mask();
 
