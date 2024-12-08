@@ -18,7 +18,8 @@ struct sockaddr_in serv_addr;
 void error_handling(char *message) {
 	fputs(message, stderr);
 	fputc('\n', stderr);
-	exit(1);
+	//exit(1);
+	system("sudo reboot now");
 }
 
 /* step 0: init */
@@ -32,8 +33,8 @@ int init_socket(char *argv_1, char *argv_2) {
 	serv_addr.sin_addr.s_addr = inet_addr(argv_1);
 	serv_addr.sin_port = htons(atoi(argv_2));
 
-	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-		error_handling("connect() error");
+	while(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1);
+	//	error_handling("connect() error");
 
 	printf("Connection established\n");
 	/*

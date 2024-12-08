@@ -30,11 +30,6 @@
 #define TRUE 1
 #define FALSE 0
 
-#define BUFMAX 100
-
-
-// buffer array
-char buff[BUFMAX];
 
 
 /* step 1: camera sensing & processing */
@@ -45,24 +40,24 @@ int process_cube(int fd) {
 	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
 		while(TRUE) {
 			int t0 = read(sock, &msg, sizeof(msg));
-			printf("%d\n", t0);
+			//printf("%d\n", t0);
 
 			if(t0 < 0) continue; // misread
-			if(t0 == 0); // disconnected case - reboot	
+			if(t0 == 0) system("sudo reboot now"); // disconnected case - reboot	
 			int t1=msg;
-			printf("receive %d, bytes: %d\n", msg, t0);
+			//printf("receive %d, bytes: %d\n", msg, t0);
 			if(msg > 0) { // if not, skip step 1
 				if(msg==2) { // wait until read the signal
-					printf("signal ok\n");
+					//printf("signal ok\n");
 					break;
 				}
-				printf("non zero\n");
+				//printf("non zero\n");
 			}
 			else
 				return 0;
 
 		}
-		printf("aaaa\n");
+		//printf("aaaa\n");
 		//system("./cap");
 		capture(fd); // capture cube plane image
 		usleep(1000);
@@ -74,12 +69,13 @@ int process_cube(int fd) {
 
 	long long l0 = encode();
 
-	printf("send! %lld\n", l0);
+	//printf("send! %lld\n", l0);
 	sig += 4; // sig = 0110 -> all planes captured, sending cube planar 
 	write(sock, &sig, sizeof(int)); // send signal first
 	write(sock, &l0, sizeof(long long)); // send cube planar
 	while(1) {
 		int t2 = read(sock, &msg, sizeof(msg));
+		if(t2 == 0) system("sudo reboot now"); // server closed - reboot
 		if(msg < 0)
 			break;
 
@@ -110,8 +106,9 @@ int task(void) {
 
 	thr_id = pthread_create(&p_thread[0], NULL, receiving_thread, NULL);
 	if (thr_id < 0) {
-		perror("reveiving_thread created error : ");
+		perror("receiving_thread created error : ");
 		exit(0);
+		//goto step2;
 	}
 	thr_id2 = pthread_create(&p_thread[1], NULL, sending_thread, NULL);
 	if (thr_id2 < 0) {
@@ -139,11 +136,12 @@ int actuate(void) {
 	PWMEnable(PWM);
 
 	while(TRUE) {
-		read(sock,&msg,sizeof(msg));
+		int t0 = read(sock,&msg,sizeof(msg));
+		if(t0 == 0) system("sudo reboot now");
 		if(msg==-1) // if step 3 finished
 			break;
 		if(msg==2) { // if the command is for mine
-			printf("read spin message!\n");
+			//printf("read spin message!\n");
 			spin(PWM, 1450000);
 		}
 		write(sock,&sig,sizeof(sig)); // always send signal who am I
@@ -158,6 +156,7 @@ int actuate(void) {
 
 /* before stop */
 int stop(void) {
+	close(sock);
 	return 0;
 }
 
@@ -198,8 +197,10 @@ step3:
 	actuate();
 
 	/* fin */
-	// stop();
-	close(sock);
+	stop();
+	//close(sock);
 
+	//system("sudo reboot now");
 	return 0;
+	
 }
