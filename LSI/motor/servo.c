@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#define MOTOR_0 1450000
+#define MOTOR_90 400000
+
 #define IN 0
 #define OUT 1
 #define PWM 0
@@ -145,7 +148,7 @@ int spin(int servo, int val) {
 	PWMWriteDutyCycle(servo, val);
 	// PWMDisable(servo);
 	usleep(1000000);
-	PWMWriteDutyCycle(servo, 1450000);
+	PWMWriteDutyCycle(servo, MOTOR_0);
 	usleep(1000000);
 	return 0;
 }
@@ -155,11 +158,11 @@ int main(void) {
 	PWMExport(PWM);
 	PWMWritePeriod(PWM, 10000000); // 400k~2500k -> 0 ~ 180 degree -> 120k is about 1 degree -> 1080k
 	// -1 -> flush buffer ->  if msg, tell my num. -1 -> finish and go to initial state;
-	PWMWriteDutyCycle(PWM, 1450000); // 0 degree setting - init.
+	PWMWriteDutyCycle(PWM, MOTOR_0); // 0 degree setting - init.
 	PWMEnable(PWM); // enable motor
 	usleep(1000000);
 	
-	spin(PWM, 400000);
+	spin(PWM, MOTOR_90);
 
 	PWMDisable(PWM);
 	PWMUnexport(PWM);
