@@ -21,6 +21,9 @@
 
 
 // ====[SERVO MOTOR CONTROL]====
+#define MOTOR_0 1450000
+#define MOTOR_90 400000
+
 #include "servo.h"
 
 
@@ -128,7 +131,7 @@ int process_cube(int fd) {
 				int t0 = read(sock, &msg, sizeof(msg));
 				printf("%d %d\n", t0, msg);
 				if(t0 < 0) continue; // misread
-				if(t0 == 0) stop(); //system("sudo reboot now"); // disconnected case - reboot	
+				if(t0 == 0) end(); //system("sudo reboot now"); // disconnected case - reboot	
 				int t1=msg;
 				//printf("receive %d, bytes: %d\n", msg, t0);
 				if(msg > 0) { // if not, skip step 1
@@ -163,31 +166,11 @@ int process_cube(int fd) {
 		write(sock, &l0, sizeof(long long)); // send cube planar
 	}
 
-	/*
-	   while(1) {
-	   int t2 = read(sock, &msg, sizeof(msg));
-	   if(t2 == 0) system("sudo reboot now"); // server closed - reboot
-	   if(msg < 0)
-	   break;
-
-	   }*/
-
-	//return 0;
 }
 
 
 /* step 2: with socket, TCP communication, do cube solving */
 int task(void) {
-	/*
-	   char msg;
-
-	   while(TRUE) {
-	   if(msg=="OK") { // wait until read the signal
-	   break;	// do something
-	   }
-	   }
-	   */
-
 	pthread_t p_thread[2];
 	int thr_id;
 	int thr_id2;
@@ -221,10 +204,9 @@ int actuate(void) {
 	int msg;
 	int sig = 2; // identifier
 
-
 	while(TRUE) {
 		int t0 = read(sock,&msg,sizeof(msg));
-		if(t0 == 0) stop(); //system("sudo reboot now");
+		if(t0 == 0) end(); //system("sudo reboot now");
 		if(msg==-1) // if step 3 finished
 			break;
 		if(msg==2) { // if the command is for mine
@@ -241,8 +223,8 @@ int actuate(void) {
 }
 
 
-/* before stop */
-int stop(void) {
+/* before end */
+int end(void) {
 	GPIOWrite(LED, 0);
 	GPIOUnexport(LED);
 
@@ -254,15 +236,6 @@ int stop(void) {
 	exit(1);
 }
 
-/*
-   void ctrlC(int sig) {
-   char msg[100];
-   if(sock > 0) {
-   close(sock);
-   exit(0);
-   }
-   }
-   */
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
@@ -273,8 +246,6 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	//signal(SIGINT, ctrlC);
-
 	init_mask();
 
 	GPIOExport(LED);
@@ -284,7 +255,7 @@ int main(int argc, char *argv[]) {
 
 	PWMExport(PWM);
 	PWMWritePeriod(PWM, 10000000);
-	PWMWriteDutyCycle(PWM, 1450000);
+	PWMWriteDutyCycle(PWM, MOTOR_0);
 	PWMEnable(PWM);
 
 	init_socket(argv[1], argv[2]); // network setup
@@ -316,7 +287,7 @@ step3:
 	actuate();
 
 	/* fin */
-	stop();
+	end();
 	//close(sock);
 	//system("sudo reboot now");
 
