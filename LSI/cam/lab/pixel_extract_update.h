@@ -85,14 +85,17 @@ double get_dist(Color c1, Color c2) {
 
 int judge_color(int red, int green, int blue) {
 	int color_code;
-	int diff;
-	int min = 999;
+	double diff;
+	double wr=0.3, wg=0.59, wb=0.11;
+
+	//int diff;
+	double min = 9999;
 	printf("===============================\n");
 
 	for(int i=0; i<6; i++) {
-		diff = get_diff(red, colors[i].r);
-		diff += get_diff(green, colors[i].g);
-		diff += get_diff(blue, colors[i].b);
+		diff = wr * get_diff(red, colors[i].r);
+		diff += wg * get_diff(green, colors[i].g);
+		diff += wb * get_diff(blue, colors[i].b);
 		printf("%d\n",diff);
 		if(min > diff) {
 			min = diff;
