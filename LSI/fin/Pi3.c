@@ -49,13 +49,13 @@ static int GPIOExport(int pin) {
 	fd = open("/sys/class/gpio/export", O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open export for writing!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
 	write(fd, buffer, bytes_written);
 	close(fd);
-	return (0);
+	return 0;
 }
 
 static int GPIODirection(int pin, int dir) {
@@ -68,13 +68,13 @@ static int GPIODirection(int pin, int dir) {
 	fd = open(path, O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open gpio direction for writing!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	if (-1 ==
 			write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
 		fprintf(stderr, "Failed to set direction!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	close(fd);
@@ -91,12 +91,12 @@ static int GPIOWrite(int pin, int value) {
 	fd = open(path, O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open gpio value for writing!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	if (1 != write(fd, &s_values_str[LOW == value ? 0 : 1], 1)) {
 		fprintf(stderr, "Failed to write value!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	close(fd);
@@ -111,7 +111,7 @@ static int GPIOUnexport(int pin) {
 	fd = open("/sys/class/gpio/unexport", O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open unexport for writing!\n");
-		return (-1);
+		exit(-1);
 	}
 
 	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
@@ -131,7 +131,7 @@ int process_cube(int fd) {
 				int t0 = read(sock, &msg, sizeof(msg));
 				printf("%d %d\n", t0, msg);
 				if(t0 < 0) continue; // misread
-				if(t0 == 0) end(); //system("sudo reboot now"); // disconnected case - reboot	
+				if(t0 == 0) exit(); // disconnected case - reboot	
 				int t1=msg;
 				//printf("receive %d, bytes: %d\n", msg, t0);
 				if(msg > 0) { // if not, skip step 1
@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
 	GPIOExport(LED);
 	usleep(1000000);
 	GPIODirection(LED, OUT);
-	usleep(1000);
+	usleep(1000000);
 
 	PWMExport(PWM);
 	PWMWritePeriod(PWM, 10000000);

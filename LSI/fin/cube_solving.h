@@ -56,9 +56,13 @@ void *receiving_thread(void *data) {
 	while(!fin){
 			// 1. 5000 x 1000 
 		int t1 = read(sock, buffer[tail], sizeof(buffer[tail]));
+		if (t1 == 0)
+			exit(0);
 		if (-1 == t1) 
 			error_handling("msg1 read() error");
 		//printf("t1 : %d\n", t1);
+		if (-2 == buffer[tail][0]) // can't solve
+			exit(0);
 		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
 			fin = 1;

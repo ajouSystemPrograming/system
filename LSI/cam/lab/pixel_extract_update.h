@@ -13,26 +13,37 @@
 
 #define BUF_MAX 25
 
+// the coordinate of the point in the image
 typedef struct {
 	int x;
 	int y;
 } Point;
 
+// RGB Color space
 typedef struct {
 	int r;
 	int g;
 	int b;
-} Color;
+} RGB;
 
-Color colors[6] = {
-	{200, 50, 100},
-	{30, 170, 60},
-	{0, 160, 255},
-	{170, 200, 30},
-	{200, 100, 50},
-	{180, 180, 180}
+// HSV Color space
+typedef struct {
+	double h;
+	double s;
+	double v;
+} HSV;
+
+// RGB Color table
+RGB colors[6] = {
+	{200, 50, 100}, // R
+	{30, 170, 60}, // G
+	{0, 160, 255}, // B
+	{170, 200, 30}, // Y
+	{200, 100, 50}, // O
+	{180, 180, 180} // W
 };
 
+HSV color
 int width, height, channels; // image info
 unsigned char *image;
 
@@ -43,23 +54,16 @@ Point p[4]; // p0, p1, p2, p3
 
 int pl;
 
-/*
-   Point pick_point(int x, int y, int dist);
 
-   void process_plane(void);
-
-   void flip(void);
-
-   int process_image(void);
-   */
-
+/* get pixel index of the point in the image */
 int pixel_index(int x, int y) {
-	int index = (y * width + x) * channels; // Calculate the pixel's index
+	int index = (y * width + x) * channels;
 	return index;
 }
 
-Color get_rgb(int x, int y) {
-	Color rgb;
+/* get rgb value of the point */
+RGB get_rgb(int x, int y) {
+	RGB rgb;
 
 	int idx = pixel_index(x, y);
 
@@ -72,21 +76,30 @@ Color get_rgb(int x, int y) {
 	return rgb;
 }
 
+/* get hsv value from rgb */
+HSV get_hsv(RGB rgb) {
+	HSV;
+	double HSV;
+	return HSV;
+
+/* get abs diff between two */
 int get_diff(int x, int y) {
 	printf("diff: %d\n", abs(x-y));
 
 	return abs(x-y);
 }
 
-double get_dist(Color c1, Color c2) {
+/* get Euclidean RGB distance */
+double get_dist(RGB c1, RGB c2) {
 	double dist = sqrt( pow((c1.r - c2.r), 2) + pow((c1.g - c2.g), 2) + pow((c1.b - c2.b), 2) );
 	return dist;
 }
 
+/* classify RGB color in 6 choices */
 int judge_color(int red, int green, int blue) {
 	int color_code;
 	double dist;
-	Color c;
+	RGB c;
 	c.r = red;
 	c.g = green;
 	c.b = blue;
@@ -114,7 +127,7 @@ int judge_color(int red, int green, int blue) {
 }
 
 
-
+/* init image */
 int init_image(int center_x, int center_y, int dist) {
 	srand(time(NULL));
 
@@ -132,6 +145,7 @@ int init_image(int center_x, int center_y, int dist) {
 		mask[i0] = mask[i0-1]*6;
 }
 
+/* pick a random point around the point */
 Point pick_point(int x, int y, int dist) {
 	Point rndp;
 	rndp.x = (x-dist)+(rand()%(2*dist+1)); // x-dist ~ x+dist
@@ -139,8 +153,9 @@ Point pick_point(int x, int y, int dist) {
 	return rndp;
 }
 
+/* process a plane of the cube */
 void process_plane(void) {
-	Color c;
+	RGB c;
 	int code;
 	Point rndp;
 
@@ -166,6 +181,7 @@ void process_plane(void) {
 	}	
 }
 
+/* flip the plane position, because the camera is flipped */
 void flip(void) {
 	int tmp;
 
@@ -178,7 +194,7 @@ void flip(void) {
 	plane[2] = tmp;
 }
 
-
+/* load the captured image file, extract colors, and save to cube planar */
 int process_image(void) {
 	image = stbi_load("img.jpg", &width, &height, &channels, 0);
 	if (!image) {
