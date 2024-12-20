@@ -234,6 +234,21 @@ int end(void) {
 	exit(1);
 }
 
+void init_led(void) {
+	// LED init
+	GPIOExport(LED);
+	usleep(1000000);
+	GPIODirection(LED, OUT);
+	usleep(1000000);
+}
+
+void init_servo(void) {
+	// Servo init
+	PWMExport(PWM);
+	PWMWritePeriod(PWM, 10000000);
+	PWMWriteDutyCycle(PWM, MOTOR_0);
+	PWMEnable(PWM);
+}
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
@@ -247,17 +262,9 @@ int main(int argc, char *argv[]) {
 	// Bitmask init
 	init_mask();
 
-	// LED init
-	GPIOExport(LED);
-	usleep(1000000);
-	GPIODirection(LED, OUT);
-	usleep(1000000);
-
-	// Servo init
-	PWMExport(PWM);
-	PWMWritePeriod(PWM, 10000000);
-	PWMWriteDutyCycle(PWM, MOTOR_0);
-	PWMEnable(PWM);
+	// LED & Servo motor init
+	init_led();
+	init_servo();
 
 	// Network init
 	init_socket(argv[1], argv[2]); // network setup
@@ -278,7 +285,7 @@ STEP1:
 	GPIOUnexport(LED);
 	usleep(1);
 
-	close(fd);
+	close_camera(fd);
 
 STEP2:
 	/* step 2 */

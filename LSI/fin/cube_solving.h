@@ -73,8 +73,7 @@ void *sending_thread(void *data) {
 	while (!fin) {
 		if (head < tail) { 
 			
-			
-			long long msg[SIZE*4]; // 원본 
+			long long msg[SIZE*4]; // original data 
 			long long l0;
 			for(int i = 0; i < SIZE; i++)
 			{
