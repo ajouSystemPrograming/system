@@ -124,14 +124,15 @@ static int GPIOUnexport(int pin) {
 /* step 1: camera sensing & processing */
 int process_cube(int fd) {
 	int msg; // received from server 
-	int sig = 2; // send to server -> 0010 : this pi's id is 2
+	int sig; // send to server -> 0010 : this pi's id is 2
 	while(TRUE) {
+		sig = 2;
 		for(pl=0; pl<6; pl++) { // for 6 planes of the cube
 			while(TRUE) {
 				int t0 = read(sock, &msg, sizeof(msg));
 				printf("%d %d\n", t0, msg);
 				if(t0 < 0) continue; // misread
-				if(t0 == 0) exit(); // disconnected case - reboot	
+				if(t0 == 0) exit(0); // disconnected case - reboot	
 				int t1=msg;
 				//printf("receive %d, bytes: %d\n", msg, t0);
 				if(msg > 0) { // if not, skip step 1
@@ -161,7 +162,7 @@ int process_cube(int fd) {
 		long long l0 = encode();
 
 		//printf("send! %lld\n", l0);
-		sig += 4; // sig = 0110 -> all planes captured, sending cube planar 
+		sig |= 4; // sig = 0110 -> all planes captured, sending cube planar 
 		write(sock, &sig, sizeof(int)); // send signal first
 		write(sock, &l0, sizeof(long long)); // send cube planar
 	}
