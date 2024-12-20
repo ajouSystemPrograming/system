@@ -141,10 +141,9 @@ static int PWMWriteDutyCycle(int pwmnum, int value) {
 	return (0);
 }
 
+/* spin motor with val, and go back to initial state */
 int spin(int servo, int val) {
-	// PWMEnable(servo);
 	PWMWriteDutyCycle(servo, val);
-	// PWMDisable(servo);
 	usleep(1000000);
 	PWMWriteDutyCycle(servo, MOTOR_0);
 	usleep(1000000);

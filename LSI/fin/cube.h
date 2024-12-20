@@ -23,10 +23,12 @@ int order[24][2] = {{5,1},{5,3},{7,1},{7,3},{5,5},{5,7},{7,5},{7,7},{5,9},{5,11}
 
 int frame[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
 
+// bit mask array
 static long long mask[24];
 
 char* tochar = "RGBYOW* EXYZ";
 
+/* init bit mask */ 
 void init_mask(void) {
 	int i0;
 	mask[0] = 1;
@@ -66,7 +68,6 @@ void printCube(int r, int c) {
 			printf("%c",tochar[cube[i0][i1]]);
 	}
 }
-
 
 long long X(long long l0){
 	long long l1 = (l0/mask[5])%6, l2 = (l0/mask[7])%6, l3, l4;

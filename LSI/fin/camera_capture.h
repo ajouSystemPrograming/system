@@ -18,6 +18,7 @@
 #define HEIGHT 480
 
 
+/* init camera device */
 int init_camera(void) {
 	// step 1: open camera device
 	int fd;
@@ -37,7 +38,7 @@ int init_camera(void) {
 		return -1;
 	}
 
-	// step 3: set formats
+	// step 3: set media formats
 	struct v4l2_format fmt = {0};
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width = WIDTH;
@@ -106,7 +107,7 @@ int capture(int fd) {
 	}
 
 
-	// step 8: deque the buffer
+	// step 8: dequeue the buffer
 	if(ioctl(fd, VIDIOC_DQBUF, &buf) == -1)	{
 		perror("Failed to retrieve captured frame!\n");
 		return -1;
@@ -128,6 +129,7 @@ int capture(int fd) {
 	return 0;	
 }
 
+/* close camera device file */
 int close_camera(int fd) {
 	close(fd);
 	return 0;

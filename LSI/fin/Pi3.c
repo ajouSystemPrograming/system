@@ -125,6 +125,7 @@ static int GPIOUnexport(int pin) {
 int process_cube(int fd) {
 	int msg; // received from server 
 	int sig; // send to server -> 0010 : this pi's id is 2
+
 	while(TRUE) {
 		sig = 2;
 		for(pl=0; pl<6; pl++) { // for 6 planes of the cube
@@ -132,21 +133,16 @@ int process_cube(int fd) {
 				int t0 = read(sock, &msg, sizeof(msg));
 				printf("%d %d\n", t0, msg);
 				if(t0 < 0) continue; // misread
-				if(t0 == 0) exit(0); // disconnected case - reboot	
-				int t1=msg;
-				//printf("receive %d, bytes: %d\n", msg, t0);
-				if(msg > 0) { // if not, skip step 1
+				if(t0 == 0) end(); // disconnected case - reboot	
+
+				if(msg > 0) {
 					if(msg==2) { // wait until read the signal
-						//printf("signal ok\n");
 						break;
 					}
-					//printf("non zero\n");
 				}
-				else
+				else // skip step 1 case
 					return 0;
 			}
-			//printf("aaaa\n");
-			//system("./cap");
 			capture(fd); // capture cube plane image
 			usleep(1000);
 			GPIOWrite(LED, 1);
@@ -161,7 +157,6 @@ int process_cube(int fd) {
 
 		long long l0 = encode();
 
-		//printf("send! %lld\n", l0);
 		sig |= 4; // sig = 0110 -> all planes captured, sending cube planar 
 		write(sock, &sig, sizeof(int)); // send signal first
 		write(sock, &l0, sizeof(long long)); // send cube planar
@@ -182,13 +177,12 @@ int task(void) {
 	thr_id = pthread_create(&p_thread[0], NULL, receiving_thread, NULL);
 	if (thr_id < 0) {
 		perror("receiving_thread created error : ");
-		exit(0);
-		//goto step2;
+		end();
 	}
 	thr_id2 = pthread_create(&p_thread[1], NULL, sending_thread, NULL);
 	if (thr_id2 < 0) {
 		perror("sending_thread created error : ");
-		exit(0);
+		end();
 	}
 
 	pthread_join(p_thread[0], (void **)&status);
@@ -202,12 +196,12 @@ int task(void) {
 
 /* step 3: control servo motor behaviors */
 int actuate(void) {
-	int msg;
-	int sig = 2; // identifier
+	int msg; // message from server
+	int sig = 2; // Pi identifier
 
 	while(TRUE) {
 		int t0 = read(sock,&msg,sizeof(msg));
-		if(t0 == 0) end(); //system("sudo reboot now");
+		if(t0 == 0) end();
 		if(msg==-1) // if step 3 finished
 			break;
 		if(msg==2) { // if the command is for mine
@@ -224,14 +218,17 @@ int actuate(void) {
 }
 
 
-/* before end */
+/* before end - return resources */
 int end(void) {
+	// LED resource
 	GPIOWrite(LED, 0);
 	GPIOUnexport(LED);
 
+	// Servo resource
 	PWMDisable(PWM);
 	PWMUnexport(PWM);
 
+	// Network resource
 	close(sock);
 
 	exit(1);
@@ -240,37 +237,41 @@ int end(void) {
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
-	int step;
+	int step; // current step info - 1 or 2 or 3
 
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	}
 
+	// Bitmask init
 	init_mask();
 
+	// LED init
 	GPIOExport(LED);
 	usleep(1000000);
 	GPIODirection(LED, OUT);
 	usleep(1000000);
 
+	// Servo init
 	PWMExport(PWM);
 	PWMWritePeriod(PWM, 10000000);
 	PWMWriteDutyCycle(PWM, MOTOR_0);
 	PWMEnable(PWM);
 
+	// Network init
 	init_socket(argv[1], argv[2]); // network setup
 	read(sock, &step, sizeof(int)); // read current step
 
 	switch(step) {
-		case 1: goto step1;
-		case 2: goto step2;
-		case 3: goto step3;
+		case 1: goto STEP1;
+		case 2: goto STEP2;
+		case 3: goto STEP3;
 	}
 
 	/* step 1 */
 	int fd;
-step1:
+STEP1:
 	fd = init_camera();
 	process_cube(fd);
 
@@ -279,19 +280,16 @@ step1:
 
 	close(fd);
 
-step2:
+STEP2:
 	/* step 2 */
 	task();
 
-step3:
+STEP3:
 	/* step 3 */
 	actuate();
 
 	/* fin */
 	end();
-	//close(sock);
-	//system("sudo reboot now");
 
 	return 0;
-
 }

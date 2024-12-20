@@ -18,8 +18,7 @@ struct sockaddr_in serv_addr;
 void error_handling(char *message) {
 	fputs(message, stderr);
 	fputc('\n', stderr);
-	//exit(1);
-	system("sudo reboot now");
+	exit(-1);
 }
 
 /* step 0: init */
@@ -34,15 +33,9 @@ int init_socket(char *argv_1, char *argv_2) {
 	serv_addr.sin_port = htons(atoi(argv_2));
 
 	while(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1);
-	//	error_handling("connect() error");
 
 	printf("Connection established\n");
 
-	/*
-	// read/write to initialize connection
-	write(sock, &buffer, sizeof(char));
-	read(sock, &buffer, sizeof(char));
-	*/
 	return 0;
 }
 
@@ -60,19 +53,16 @@ void *receiving_thread(void *data) {
 			exit(0);
 		if (-1 == t1) 
 			error_handling("msg1 read() error");
-		//printf("t1 : %d\n", t1);
 		if (-2 == buffer[tail][0]) // can't solve
 			exit(0);
 		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
 			fin = 1;
 			pthread_exit(NULL);
-			//exit(0);
 		}
 		
 		k=0;
 		tail++;
-		//printf("tail : %d\n", tail);
 		
 	}
 }
@@ -105,11 +95,8 @@ void *sending_thread(void *data) {
 			
 			int t0 = 0;
 			t0 = write(sock, msg, sizeof(msg));
-			//printf("%d\n", t0);
-			//usleep(1000);
 			test_count2 = 0;
 			
-			//printf("head : %d\n\n", head);
 		} else {
 	
 		}
