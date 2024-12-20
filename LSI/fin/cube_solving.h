@@ -18,7 +18,7 @@ struct sockaddr_in serv_addr;
 void error_handling(char *message) {
 	fputs(message, stderr);
 	fputc('\n', stderr);
-	exit(1);
+	exit(-1);
 }
 
 /* step 0: init */
@@ -32,15 +32,10 @@ int init_socket(char *argv_1, char *argv_2) {
 	serv_addr.sin_addr.s_addr = inet_addr(argv_1);
 	serv_addr.sin_port = htons(atoi(argv_2));
 
-	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-		error_handling("connect() error");
+	while(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1);
 
 	printf("Connection established\n");
-	/*
-	// read/write to initialize connection
-	write(sock, &buffer, sizeof(char));
-	read(sock, &buffer, sizeof(char));
-	*/
+
 	return 0;
 }
 
@@ -54,17 +49,20 @@ void *receiving_thread(void *data) {
 	while(!fin){
 			// 1. 5000 x 1000 
 		int t1 = read(sock, buffer[tail], sizeof(buffer[tail]));
+		if (t1 == 0)
+			exit(0);
 		if (-1 == t1) 
 			error_handling("msg1 read() error");
-		//printf("t1 : %d\n", t1);
+		if (-2 == buffer[tail][0]) // can't solve
+			exit(0);
 		if (-1 == buffer[tail][0]) {
 			printf("-1 is received\n");
-			exit(0);
+			fin = 1;
+			pthread_exit(NULL);
 		}
 		
 		k=0;
 		tail++;
-		//printf("tail : %d\n", tail);
 		
 	}
 }
@@ -72,7 +70,7 @@ void *receiving_thread(void *data) {
 void *sending_thread(void *data) {
 	printf("sending thread...\n");
 	int test_count2 = 0;
-	while (1) {
+	while (!fin) {
 		if (head < tail) { 
 			
 			
@@ -97,11 +95,8 @@ void *sending_thread(void *data) {
 			
 			int t0 = 0;
 			t0 = write(sock, msg, sizeof(msg));
-			//printf("%d\n", t0);
-			//usleep(1000);
 			test_count2 = 0;
 			
-			//printf("head : %d\n\n", head);
 		} else {
 	
 		}

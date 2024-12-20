@@ -20,60 +20,153 @@
 #include "pixel_extract.h"
 
 
+// ====[SERVO MOTOR CONTROL]====
+#define MOTOR_0 1450000
+#define MOTOR_90 400000
+
+#include "servo.h"
+
+
 // =========[MAIN]==========
 #include "cube_solving.h"
 
 #define TRUE 1
 #define FALSE 0
 
-#define BUFMAX 100
+#define LED 2
 
+#define VALUE_MAX 40
+#define DIRECTION_MAX 128
+#define IN 0
+#define OUT 1
 
-// buffer array
-char buff[BUFMAX];
+static int GPIOExport(int pin) {
+#define BUFFER_MAX 3
+	char buffer[BUFFER_MAX];
+	ssize_t bytes_written;
+	int fd;
+
+	fd = open("/sys/class/gpio/export", O_WRONLY);
+	if (-1 == fd) {
+		fprintf(stderr, "Failed to open export for writing!\n");
+		exit(-1);
+	}
+
+	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
+	write(fd, buffer, bytes_written);
+	close(fd);
+	return 0;
+}
+
+static int GPIODirection(int pin, int dir) {
+	static const char s_directions_str[] = "in\0out";
+
+	char path[DIRECTION_MAX];
+	int fd;
+
+	snprintf(path, DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin);
+	fd = open(path, O_WRONLY);
+	if (-1 == fd) {
+		fprintf(stderr, "Failed to open gpio direction for writing!\n");
+		exit(-1);
+	}
+
+	if (-1 ==
+			write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
+		fprintf(stderr, "Failed to set direction!\n");
+		exit(-1);
+	}
+
+	close(fd);
+	return (0);
+}
+
+static int GPIOWrite(int pin, int value) {
+	static const char s_values_str[] = "01";
+
+	char path[VALUE_MAX];
+	int fd;
+
+	snprintf(path, VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin);
+	fd = open(path, O_WRONLY);
+	if (-1 == fd) {
+		fprintf(stderr, "Failed to open gpio value for writing!\n");
+		exit(-1);
+	}
+
+	if (1 != write(fd, &s_values_str[LOW == value ? 0 : 1], 1)) {
+		fprintf(stderr, "Failed to write value!\n");
+		exit(-1);
+	}
+
+	close(fd);
+	return (0);
+}
+
+static int GPIOUnexport(int pin) {
+	char buffer[BUFFER_MAX];
+	ssize_t bytes_written;
+	int fd;
+
+	fd = open("/sys/class/gpio/unexport", O_WRONLY);
+	if (-1 == fd) {
+		fprintf(stderr, "Failed to open unexport for writing!\n");
+		exit(-1);
+	}
+
+	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
+	write(fd, buffer, bytes_written);
+	close(fd);
+	return (0);
+}
 
 
 /* step 1: camera sensing & processing */
-int process_cube(void) {
-	char msg; 
+int process_cube(int fd) {
+	int msg; // received from server 
+	int sig; // send to server -> 0010 : this pi's id is 2
 
-	for(pl=0; pl<6; pl++) { // for 6 planes of the cube
-		while(TRUE) {
-			int t0 = read(sock, &msg, sizeof(msg));
-			if(t0 < 0) continue; // misread
-			if(t0 == 0); // disconnected case - reboot	
-			if(msg=='o') { // wait until read the signal
-				break;
+	while(TRUE) {
+		sig = 2;
+		for(pl=0; pl<6; pl++) { // for 6 planes of the cube
+			while(TRUE) {
+				int t0 = read(sock, &msg, sizeof(msg));
+				printf("%d %d\n", t0, msg);
+				if(t0 < 0) continue; // misread
+				if(t0 == 0) end(); // disconnected case - reboot	
+
+				if(msg > 0) {
+					if(msg==2) { // wait until read the signal
+						break;
+					}
+				}
+				else // skip step 1 case
+					return 0;
 			}
+			capture(fd); // capture cube plane image
+			usleep(1000);
+			GPIOWrite(LED, 1);
+			usleep(1);
+			process_image(); // get colors for the cube plane and apply to cube planar
+			printf("capture & process a plane!\n");
+			usleep(3000000);
+			GPIOWrite(LED, 0);
+			usleep(1);
+			write(sock, &sig, sizeof(sig)); // alert captured, ready for next sign
 		}
-		
-		capture(); // capture cube plane image
-		process_image(); // get colors for the cube plane and apply to cube planar
 
-		write(sock, &buffer, sizeof(char)); // alert ready for next sign
+		long long l0 = encode();
 
+		sig |= 4; // sig = 0110 -> all planes captured, sending cube planar 
+		write(sock, &sig, sizeof(int)); // send signal first
+		write(sock, &l0, sizeof(long long)); // send cube planar
 	}
 
-	long long l0 = encode();
-
-	write(sock, &l0, sizeof(long long));
-
-	return 0;
 }
 
 
 /* step 2: with socket, TCP communication, do cube solving */
 int task(void) {
-	/*
-	char msg;
-
-	while(TRUE) {
-		if(msg=="OK") { // wait until read the signal
-			break;	// do something
-		}
-	}
-	*/
-
 	pthread_t p_thread[2];
 	int thr_id;
 	int thr_id2;
@@ -83,17 +176,19 @@ int task(void) {
 
 	thr_id = pthread_create(&p_thread[0], NULL, receiving_thread, NULL);
 	if (thr_id < 0) {
-		perror("reveiving_thread created error : ");
-		exit(0);
+		perror("receiving_thread created error : ");
+		end();
 	}
 	thr_id2 = pthread_create(&p_thread[1], NULL, sending_thread, NULL);
 	if (thr_id2 < 0) {
 		perror("sending_thread created error : ");
-		exit(0);
+		end();
 	}
 
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
+
+	printf("Finished step 2!\n");
 
 	return 0;
 }
@@ -101,45 +196,100 @@ int task(void) {
 
 /* step 3: control servo motor behaviors */
 int actuate(void) {
-	char msg;
+	int msg; // message from server
+	int sig = 2; // Pi identifier
 
 	while(TRUE) {
-		if(msg=="OK") { // wait until read the signal
-			break;	// do something
+		int t0 = read(sock,&msg,sizeof(msg));
+		if(t0 == 0) end();
+		if(msg==-1) // if step 3 finished
+			break;
+		if(msg==2) { // if the command is for mine
+			printf("read spin message!\n");
+			spin(PWM, MOTOR_90);
 		}
+		write(sock,&sig,sizeof(sig)); // always send signal who am I
 	}
 
-	// do something
+	PWMDisable(PWM);
+	PWMUnexport(PWM);
 
 	return 0;
 }
 
 
-/* before stop */
-int stop(void) {
-	return 0;
+/* before end - return resources */
+int end(void) {
+	// LED resource
+	GPIOWrite(LED, 0);
+	GPIOUnexport(LED);
+
+	// Servo resource
+	PWMDisable(PWM);
+	PWMUnexport(PWM);
+
+	// Network resource
+	close(sock);
+
+	exit(1);
 }
 
 
 /* main func of client pi 3 */
 int main(int argc, char *argv[]) {
+	int step; // current step info - 1 or 2 or 3
+
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	}
 
-	init_socket(argv[1], argv[2]);
+	// Bitmask init
 	init_mask();
 
+	// LED init
+	GPIOExport(LED);
+	usleep(1000000);
+	GPIODirection(LED, OUT);
+	usleep(1000000);
 
-	// process_cube();
-	
+	// Servo init
+	PWMExport(PWM);
+	PWMWritePeriod(PWM, 10000000);
+	PWMWriteDutyCycle(PWM, MOTOR_0);
+	PWMEnable(PWM);
+
+	// Network init
+	init_socket(argv[1], argv[2]); // network setup
+	read(sock, &step, sizeof(int)); // read current step
+
+	switch(step) {
+		case 1: goto STEP1;
+		case 2: goto STEP2;
+		case 3: goto STEP3;
+	}
+
+	/* step 1 */
+	int fd;
+STEP1:
+	fd = init_camera();
+	process_cube(fd);
+
+	GPIOUnexport(LED);
+	usleep(1);
+
+	close(fd);
+
+STEP2:
+	/* step 2 */
 	task();
-	
-	// actuate();
 
-	// stop();
-	close(sock);
+STEP3:
+	/* step 3 */
+	actuate();
+
+	/* fin */
+	end();
 
 	return 0;
 }
