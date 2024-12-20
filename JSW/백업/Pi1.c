@@ -16,6 +16,8 @@
 #define OUT 1
 #define LOW 0
 #define HIGH 1
+//#define POUT 23 // 초음파센서
+//#define PIN 24 // 초음파센서
 #define PWM 0
 #define POUT2 17
 #define SIZE 10 // sending and receiving buffer size
@@ -29,13 +31,14 @@
 #define MOTOR_0 1450000
 #define MOTOR_90 400000
 
+
+int temp;
 int sock;
 long long buffer[5000000/SIZE][SIZE];
 int head;
 int tail;
 static long long mask[24];
 int fin = 0;
-struct sockaddr_in serv_addr;
 
 //에러 함수
 void error_handling(char *message) {
@@ -262,7 +265,9 @@ static int PWMDisable(int pwmnum) {
    return (0);
 }
 int spin(int servo, int val) {
+   // PWMEnable(servo);
    PWMWriteDutyCycle(servo, val);
+   // PWMDisable(servo);
    usleep(1000000);
    PWMWriteDutyCycle(servo, MOTOR_0);
    usleep(1000000);
@@ -325,14 +330,20 @@ long long Z(long long l0){
 }
 // SIZE만큼 개수의 전개도를 서버로부터 받아 입력 버퍼에 넣는 함수
 void *receiving_thread(void *data) {
-
+	//
 	printf("receiving thread...\n");
+	
+	int k = 0;
+	//
+	int test_count1;
 	while(1){
+			// 1. 5000 x 1000 
 		int t1 = read(sock, buffer[tail], sizeof(buffer[tail]));
 		if(t1==0)
 			exit(0);
 		if (-1 == t1) 
 			error_handling("buffer read() error\n");
+		//printf("t1 : %d\n", t1);
 		if (-2 == buffer[tail][0])
 			exit(0);
 		if (-1 == buffer[tail][0]) {
@@ -340,7 +351,11 @@ void *receiving_thread(void *data) {
 			fin = 1;
 			pthread_exit(NULL);
 		}
+		
+		k=0;
 		tail++;
+		//printf("tail : %d\n", tail);
+		
 	}
 }
 // 버퍼에서 값을 꺼내 (원본, X회전결과, Y회전결과, Z회전결과)로 4개로 나눠진 값을 출력 버퍼에 저장하고,
@@ -351,7 +366,7 @@ void *sending_thread(void *data) {
 	while (!fin) {
 		if (head < tail) { 
 			
-			long long msg[SIZE*4] 
+			long long msg[SIZE*4]; // 원본 
 			long long l0;
 			for(int i = 0; i < SIZE; i++)
 			{
@@ -361,7 +376,7 @@ void *sending_thread(void *data) {
 					exit(0);
 					break;
 				}
-				msg[i*4] = l0;; // 원본
+				msg[i*4] = l0;
 				msg[i*4+1] = X(l0);
 				msg[i*4+2] = Y(l0);
 				msg[i*4+3] = Z(l0);
@@ -370,8 +385,10 @@ void *sending_thread(void *data) {
 			head++;
 			int t0 = 0;
 			t0 = write(sock, msg, sizeof(msg));
-			test_count2 = 0; // usleep 역할. 
+			//printf("%d\n", t0);
+			test_count2 = 0;
 			
+			//printf("head : %d\n\n", head);
 		} else {
 	
 		}
@@ -414,8 +431,7 @@ double get_distance(int trig, int echo) {
 }
 
 
-// 2개의 초음파 센서와 LED를 사용해, 큐브가 적정 위치(거리)에 있을 때
-// LED를 점등시키며, 서버에게 '적정 거리' 메시지를 보내는 함수.
+// 거리에 따라 led를 점등시키는 함수
 int led_breathing() {
 	// Enable GPIO pins
 	if (-1 == GPIOExport(TRIG_FRONT) || -1 == GPIOExport(ECHO_FRONT) || -1 == GPIOExport(TRIG_BOT) || -1 == GPIOExport(ECHO_BOT) || -1 == GPIOExport(POUT2)) {
@@ -440,7 +456,7 @@ int led_breathing() {
 
 	// start
 	int prev_state = 0;
-	int state = 0; // 상태가 변할 때만 동작하게 할 것임.
+	int state = 0;
 	int flag_pi1 = 1; // 'Pi1' 이라는 걸 알리기 위한 flag
 	int one = 1;
 	int count = 0;
@@ -465,7 +481,9 @@ int led_breathing() {
 		}
 	        // get distance	
 		double distance_bottom = get_distance(TRIG_BOT, ECHO_BOT);//옆
+		//int distance_side = get_distance(
 		state = 0;
+		// '가장 최적의 거리'일 때를 2.5~3cm이라 하자.
 		if(distance_bottom > 10.0 && distance_bottom < 11.5) {
 			double distance_front = get_distance(TRIG_FRONT, ECHO_FRONT);//앞
 			if(distance_front > 6.5 && distance_front < 7.5) {
@@ -504,8 +522,6 @@ int led_breathing() {
 	printf("complete\n");
 }
 
-// 서버에게 큐브 회전 명령을 받을 때마다, 
-// spin() 함수를 호출해 서보 모터를 90도 회전시키는 함수.
 int actuate(void) {
 	int msg;
 	int sig = 1; // identifier
@@ -530,43 +546,71 @@ int actuate(void) {
 	return 0;
 }
 
-// 소켓 초기화 함수
-int init_socket(const* char argv1, const* char argv2) { 
-
-    sock = socket(PF_INET, SOCK_STREAM, 0);
+// 자원 반환
+int end() {
+	return 0;
+}
+// 메인 함수
+int main(int argc, char *argv[]) {
+	mask[0]=1;
+	for(int i = 1; i < 24; i++)
+		mask[i] = mask[i-1]*6;
+	
+	// 소켓 연결을 위한 코드들
+	struct sockaddr_in serv_addr;
+	if (argc != 3) {
+		printf("Usage : %s <IP> <port>\n", argv[0]);
+		exit(1);
+	}
+	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1) 
 		error_handling("socket() error");
 	
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(argv1);
-	serv_addr.sin_port = htons(atoi(argv2));
+	serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
+	serv_addr.sin_port = htons(atoi(argv[2]));
 
 	while(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1);
 	//	error_handling("connect() error");
 	printf("Connection established\n");
-
-    return 0;
-}
-// 서보 모터 초기화 함수
-void init_servo() {
-	// Servo init
+	
 	PWMExport(PWM);
+	usleep(1000);
 	PWMWritePeriod(PWM, 10000000);
+	usleep(1000);
 	PWMWriteDutyCycle(PWM, MOTOR_0);
+	usleep(1000);
 	PWMEnable(PWM);
-}
-// 큐브 솔빙 위한 bitmask 배열 초기화 함수
-void init_mask(void) {
-	int i0;
-	mask[0] = 1;
-	for(i0 = 1; i0 < 24; i0++)
-		mask[i0] = mask[i0-1]*6;
-}
-
-// 스레드 돌리는 함수
-int run_thread() {
-    printf("step 2 start.\n");
+	usleep(1000);
+	int label = 0;
+	read(sock, &label, sizeof(label));
+	printf("label:%d\n",label);
+	switch(label) {
+		case 1:
+			goto STEP1;
+		case 2:
+			goto STEP2;
+		case 3:
+			goto STEP3;
+	}
+	
+STEP1:
+	printf("step 1 start.\n");
+	int flag = fcntl(sock, F_GETFL); 
+	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
+	// 초음파 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
+		
+	// 초음파 센서 값 전달
+	if (0 == led_breathing()) {
+		printf("led_breathing completed.\n");
+	}
+	
+	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
+	// 다시 블로킹 모드로 돌아옴.
+	
+STEP2:
+	printf("step 2 start.\n");
 	// 이제 쓰레드 실행을 위한 코드들
 	pthread_t p_thread[2];
 	int thr_id;
@@ -589,60 +633,10 @@ int run_thread() {
 	
 	pthread_join(p_thread[0], (void **)&status);
 	pthread_join(p_thread[1], (void **)&status);
-}
-
-// 메인 함수
-int main(int argc, char *argv[]) {
-
-	if (argc != 3) {
-		printf("Usage : %s <IP> <port>\n", argv[0]);
-		exit(1);
-	}
-
-    // 큐브 솔빙을 위한 bitmask 배열 초기화.
-	init_mask();
-
-	// 서버와 소켓 통신 연결
-    init_socket(argv[1], argv[2]);
-	// 서보 모터 초기화
-    init_servo();
-
-    // 서버가 지금 몇 단계를 수행중인지 label을 받은 후,
-    // 서버가 진행중인 단계에 바로 참여함.
-	int label = 0;
-	read(sock, &label, sizeof(label));
-	printf("label:%d\n",label);
-	switch(label) {
-		case 1:
-			goto STEP1;
-		case 2:
-			goto STEP2;
-		case 3:
-			goto STEP3;
-	}
-	
-STEP1:
-	printf("step 1 start.\n");
-	int flag = fcntl(sock, F_GETFL); 
-	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
-	// 초음파 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
-		
-	// 초음파 센서 초기화 및 센싱 결과 서버에 전달
-	if (0 == led_breathing()) {
-		printf("led_breathing completed.\n");
-	}
-	
-	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
-	// 다시 블로킹 모드로 돌아옴.
-	
-STEP2:
-    // 분산 처리 스레드 실행 함수
-    run_thread();
 
 STEP3:
 	printf("step 3 start.\n");
 
-    // 서보 모터 제어 함수
 	actuate();
 	
 	close(sock);

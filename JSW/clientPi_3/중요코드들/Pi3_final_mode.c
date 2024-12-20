@@ -1,34 +1,36 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
-#include <time.h>
+#include <linux/spi/spidev.h>
+#include <linux/types.h>
 
 #define BUFFER_MAX 3
 #define DIRECTION_MAX 256
 #define VALUE_MAX 256
+#define MAX_BUFFER 5000000
 #define IN 0
 #define OUT 1
 #define LOW 0
 #define HIGH 1
-#define PWM 0
-#define POUT2 17
+#define POUT 17 // LED OUT
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define PROPER_BRIGHTNESS 500 // 조도센서 적정 밝기 기준값
 #define SIZE 10 // sending and receiving buffer size
 
-#define TRIG_FRONT 26
-#define ECHO_FRONT 21
-
-#define TRIG_BOT 23
-#define ECHO_BOT 24
+#define PWM 0
 
 #define MOTOR_0 1450000
 #define MOTOR_90 400000
 
+int temp;
 int sock;
 long long buffer[5000000/SIZE][SIZE];
 int head;
@@ -43,6 +45,7 @@ void error_handling(char *message) {
 	fputc('\n', stderr);
 	exit(1);
 }
+
 //GPIO 연결 함수들 
 static int GPIOExport(int pin) {
 	char buffer[BUFFER_MAX];
@@ -70,18 +73,20 @@ static int GPIOUnexport(int pin) {
 		fprintf(stderr, "Failed to open unexport for writing!\n");
 		return (-1);
 	}
+
 	bytes_written = snprintf(buffer, BUFFER_MAX, "%d", pin);
 	write(fd, buffer, bytes_written);
 	close(fd);
 	return (0);
 }
 static int GPIODirection(int pin, int dir) {
+
 	static const char s_directions_str[] = "in\0out";
-	char path[DIRECTION_MAX] = "/sys/class/gpio/gpio%d/direction";
+
+	char path[DIRECTION_MAX];
 	int fd;
 
 	snprintf(path, DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin);
-
 	fd = open(path, O_WRONLY);
 	if (-1 == fd) {
 		fprintf(stderr, "Failed to open gpio direction for writing!\n");
@@ -89,7 +94,7 @@ static int GPIODirection(int pin, int dir) {
 	}
 
 	if (-1 ==
-			write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
+		write(fd, &s_directions_str[IN == dir ? 0 : 3], IN == dir ? 2 : 3)) {
 		fprintf(stderr, "Failed to set direction!\n");
 		return (-1);
 	}
@@ -97,30 +102,9 @@ static int GPIODirection(int pin, int dir) {
 	close(fd);
 	return (0);
 }
-static int GPIORead(int pin) {
-	char path[VALUE_MAX];
-	char value_str[3];
-	int fd;
-
-	snprintf(path, VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin);
-	fd = open(path, O_RDONLY);
-	if (-1 == fd) {
-		fprintf(stderr, "Failed to open gpio value for reading!\n");
-		return (-1);
-	}
-
-	if (-1 == read(fd, value_str, 3)) {
-		fprintf(stderr, "Failed to read value!\n");
-		return (-1);
-	}
-
-	close(fd);
-
-	return (atoi(value_str));
-}
 static int GPIOWrite(int pin, int value) {
-	
 	static const char s_values_str[] = "01";
+
 	char path[VALUE_MAX];
 	int fd;
 
@@ -134,12 +118,66 @@ static int GPIOWrite(int pin, int value) {
 	if (1 != write(fd, &s_values_str[LOW == value ? 0 : 1], 1)) {
 		fprintf(stderr, "Failed to write value!\n");
 		return (-1);
-
-		close(fd);
-		return (0);
 	}
+
+	close(fd);
+	return (0);
 }
-//PWM 관련 함수들
+//조도 센서 관련 변수 및 함수들
+static const char *DEVICE = "/dev/spidev0.0";
+static uint8_t MODE = 0;
+static uint8_t BITS = 8;
+static uint32_t CLOCK = 1000000;
+static uint16_t DELAY = 5;
+static int prepare(int fd) {
+	if (ioctl(fd, SPI_IOC_WR_MODE, &MODE) == -1) {
+		perror("Can't set MODE");
+		return -1;
+	}
+
+	if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &BITS) == -1) {
+		perror("Can't set number of BITS");
+		return -1;
+	}
+
+	if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &CLOCK) == -1) {
+		perror("Can't set write CLOCK");
+		return -1;
+	}
+
+	if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &CLOCK) == -1) {
+		perror("Can't set read CLOCK");
+		return -1;
+	}
+
+	return 0;
+}
+uint8_t control_bits_differential(uint8_t channel) {
+	return (channel & 7) << 4;
+}
+uint8_t control_bits(uint8_t channel) {
+	return 0x8 | control_bits_differential(channel);
+}
+int readadc(int fd, uint8_t channel) {
+	uint8_t tx[] = {1, control_bits(channel), 0};
+	uint8_t rx[3];
+
+	struct spi_ioc_transfer tr = {
+			.tx_buf = (unsigned long)tx,
+			.rx_buf = (unsigned long)rx,
+			.len = ARRAY_SIZE(tx),
+			.delay_usecs = DELAY,
+			.speed_hz = CLOCK,
+			.bits_per_word = BITS,
+	};
+
+	if (ioctl(fd, SPI_IOC_MESSAGE(1), &tr) == 1) {
+		perror("IO Error");
+		abort();
+	}
+
+	return ((rx[1] << 8) & 0x300) | (rx[2] & 0xFF);
+}
 static int PWMExport(int pwmnum) {
 
   char buffer[BUFFER_MAX];
@@ -380,146 +418,118 @@ void *sending_thread(void *data) {
 	pthread_exit(NULL);
 }
 
-/* get distance with a ultrawave sensor */
-double get_distance(int trig, int echo) {
-	clock_t start_t, end_t;
-	double time;
-	double distance = 0;
-
-	if (-1 == GPIOWrite(trig, 1)) {
-		printf("gpio write/trigger err\n");
-		exit(0);
-	}
-	// 1sec == 1000000ultra_sec, 1ms = 1000ultra_sec
-	usleep(10);
-	GPIOWrite(trig, 0);
-	int t = 0;
-	printf("1\n");
-	while (t=GPIORead(echo) == 0) {
-		start_t = clock();
-	}
-	usleep(10);
-	printf("2\n");
-	while (GPIORead(echo) == 1) {
-		end_t = clock();
-	}
-
-	time = (double)(end_t - start_t) / CLOCKS_PER_SEC;  // ms
-	printf("time : %.4lf\n", time);
-	distance = time / 2 * 34000;
-	//flag_pi1 = 1;
-	printf("%d distance : %.2lfcm\n", echo, distance);
-
-	return distance;
-}
-
-
-// 2개의 초음파 센서와 LED를 사용해, 큐브가 적정 위치(거리)에 있을 때
-// LED를 점등시키며, 서버에게 '적정 거리' 메시지를 보내는 함수.
+// 조도 센서와 LED를 사용해, 주변이 적정 밝기일 때
+// LED를 점등시키며, 서버에게 '적정 밝기' 메시지를 보내는 함수.
 int led_breathing() {
-	// Enable GPIO pins
-	if (-1 == GPIOExport(TRIG_FRONT) || -1 == GPIOExport(ECHO_FRONT) || -1 == GPIOExport(TRIG_BOT) || -1 == GPIOExport(ECHO_BOT) || -1 == GPIOExport(POUT2)) {
+	int fd = open(DEVICE, O_RDWR);
+	if (fd <= 0) {
+    	perror("Device open error");
+    	exit(-1);
+	}
+
+	if (prepare(fd) == -1) {
+    	perror("Device prepare error");
+    	exit(-1);
+	}
+
+	if (GPIOExport(POUT) == -1) {
 		printf("gpio export err\n");
-		exit(1);
+    	exit(-1);
 	}
-	// wait for writing to export file
+	
 	usleep(100000);
-	// Set GPIO directions
-	if (-1 == GPIODirection(TRIG_FRONT, OUT) || -1 == GPIODirection(ECHO_FRONT, IN) || -1 == GPIODirection(TRIG_BOT, OUT) || -1 == GPIODirection(ECHO_BOT,IN) || -1 == GPIODirection(POUT2, OUT)) {
+
+
+	if (GPIODirection(POUT, OUT) == -1) {
 		printf("gpio direction err\n");
-		exit(1);
+    	exit(-1);
 	}
 	
-	// wait for writing to export file
-	usleep(100000);
-	
-	// init ultrawave trigger
-	GPIOWrite(TRIG_FRONT, 0);
-	GPIOWrite(POUT2, 0);
+	GPIOWrite(POUT, 0);
 	usleep(10000);
 
 	// start
+	int brightness;
 	int prev_state = 0;
 	int state = 0; // 상태가 변할 때만 동작하게 할 것임.
-	int flag_pi1 = 1; // 'Pi1' 이라는 걸 알리기 위한 flag
-	int one = 1;
-	int count = 0;
-	while(1) {
+	int flag_pi3 = 3; // 'Pi2' 이라는 걸 알리기 위한 flag
+	int one = 3;
+	while (1) {
+
 		int isPic = 0; // 카메라 파이에서 사진을 찍었는지 여부를 확인하기 위한 숫자.
 		
 		int t0 = read(sock, &isPic, sizeof(isPic));
-		if(t0==0)
-			exit(0);
 		printf("t0 : %d\n", t0);
 		printf("isPic : %d\n", isPic);
-		
+		if(t0 == 0) exit(0);
 		if(t0 > 0) { // 뭔가 받았을 때
 			if (isPic < 0) {  // 다음 단계로 넘어가라는 표식
 			printf("Picture is captured. Stopping sensoring distance.\n");
 			return 0;
 			}
-			else { // -1 아니면 내 꺼 아님.
-				printf("It's not for terminating!!\n");
+			else  { // -1 아니면 내 꺼 아님.
+				printf("It's not for terminating!!\n");		
 				continue;
 			}
 		}
-	        // get distance	
-		double distance_bottom = get_distance(TRIG_BOT, ECHO_BOT);//옆
-		state = 0;
-		if(distance_bottom > 10.0 && distance_bottom < 11.5) {
-			double distance_front = get_distance(TRIG_FRONT, ECHO_FRONT);//앞
-			if(distance_front > 6.5 && distance_front < 7.5) {
-				state = 1;
-				if (0 == prev_state && 1 == state) {
-					GPIOWrite(POUT2, 1);
-					one = 5; // 내 메세지를 받아 달라고 서버에게 전달. 2번째 비트를 1로.
-					if (-1 == write(sock, &flag_pi1, sizeof(flag_pi1))) // Pi1 임을 알리기 위한 write
-						error_handling("Server is not receiving your flag_pi1.\n");
-					printf("flag_pi1 : %d\n", flag_pi1);
-					if (-1 == write(sock, &one, sizeof(one))) // 적정 거리임을 알리기 위한 write
-						error_handling("Server is not receiving your distance.\n");
-					printf("one : %d\n", one);
-				}
-			}
-		}
-		if(state == 0) {
-			if (1 == prev_state && 0 == state) {
-				GPIOWrite(POUT2, 0);
-				one = 1; // 내 메세지를 받아 달라고 서버에게 전달. 2번째 비트를 1로.
-				if (-1 == write(sock, &flag_pi1, sizeof(flag_pi1))) // Pi1 임을 알리기 위한 write
-					error_handling("Server is not receiving your flag_pi1.\n");
-				printf("flag_pi1 : %d\n", flag_pi1);
-				if (-1 == write(sock, &one, sizeof(one))) // 적정 거리임을 알리기 위한 write
-					error_handling("Server is not receiving your distance.\n");
+		
+		printf("value: %d\n", brightness = readadc(fd, 0));
+		printf("Current brightness : %d\n", brightness);
+		if (brightness < PROPER_BRIGHTNESS) { // t0은 0 부터 1023 사이 값
+			printf("@@Set it brighter!!\n");
+			GPIOWrite(POUT, 0);
+			state = 0;
+			if (1 == prev_state) {
+				printf("state is changed\n");
+				one = 3; // 밝았다가 어두워졌다고 서버에게 전달. 2번째 비트를 0으로.
+				if (-1 == write(sock, &flag_pi3, sizeof(flag_pi3))) // Pi3 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi2.\n");
+				printf("flag_pi3 : %d\n", flag_pi3);
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
+					error_handling("Server is not receiving your brightness.\n");
 				printf("one : %d\n", one);
-				
 			}
+		} else {
+			printf("@@Proper brightness!!\n");
+			GPIOWrite(POUT, 1);
+			state = 1;
+			if (0 == prev_state) {
+				printf("state is changed\n");
+				one = 7; // 어두웠다가 밝아졌다고 서버에게 전달. 2번째 비트를 1로.
+				if (-1 == write(sock, &flag_pi3, sizeof(flag_pi3))) // Pi3 임을 알리기 위한 write
+					error_handling("Server is not receiving your flag_pi2.\n");
+				printf("flag_pi3 : %d\n", flag_pi3);
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 밝기임을 알리기 위한 write
+					error_handling("Server is not receiving your brightness.\n");
+				printf("one : %d\n", one);
+			} 
+			
 		}
 		prev_state = state;
 		usleep(1000000);
 	}
 
 	// Disable GPIO pins
-	if (-1 == GPIOUnexport(TRIG_FRONT) || -1 == GPIOUnexport(ECHO_FRONT) || -1 == GPIOUnexport(TRIG_BOT) || -1 == GPIOUnexport(ECHO_BOT) || -1 == GPIOUnexport(POUT2)) return (4);
+	if (GPIOUnexport(POUT) == -1) {
+    	exit(0);
+	}
 	printf("complete\n");
-}
 
-// 서버에게 큐브 회전 명령을 받을 때마다, 
-// spin() 함수를 호출해 서보 모터를 90도 회전시키는 함수.
+}
 int actuate(void) {
 	int msg;
-	int sig = 1; // identifier
+	int sig = 3; // identifier
 
-		  // PWM1 init
 	
 	while(1) {
 		read(sock,&msg,sizeof(msg));
+		printf("spin %d\n", msg);
 		if(msg==-1) // if step 3 finished
 			break;
-		if(msg==1) { // if the command is for mine
+		if(msg==3) { // if the command is for mine
 			printf("spin is starting.\n");
 			spin(PWM, MOTOR_90);
-		} else 
+		} else
 			printf("spin is not starting.\n");
 		write(sock,&sig,sizeof(sig)); // always send signal who am I
 	}
@@ -593,13 +603,13 @@ int run_thread() {
 
 // 메인 함수
 int main(int argc, char *argv[]) {
-
+	
 	if (argc != 3) {
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	}
 
-    // 큐브 솔빙을 위한 bitmask 배열 초기화.
+	// 큐브 솔빙을 위한 bitmask 배열 초기화.
 	init_mask();
 
 	// 서버와 소켓 통신 연결
@@ -607,11 +617,10 @@ int main(int argc, char *argv[]) {
 	// 서보 모터 초기화
     init_servo();
 
-    // 서버가 지금 몇 단계를 수행중인지 label을 받은 후,
+	// 서버가 지금 몇 단계를 수행중인지 label을 받은 후,
     // 서버가 진행중인 단계에 바로 참여함.
 	int label = 0;
 	read(sock, &label, sizeof(label));
-	printf("label:%d\n",label);
 	switch(label) {
 		case 1:
 			goto STEP1;
@@ -625,20 +634,20 @@ STEP1:
 	printf("step 1 start.\n");
 	int flag = fcntl(sock, F_GETFL); 
 	fcntl(sock, F_SETFL, flag | O_NONBLOCK);
-	// 초음파 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
+	// 조도 센서값 읽는 건 논 블로킹 모드로 실행할 거임.
 		
-	// 초음파 센서 초기화 및 센싱 결과 서버에 전달
+	// 조도 센서 초기화 및 센싱 결과 서버에 전달
 	if (0 == led_breathing()) {
 		printf("led_breathing completed.\n");
 	}
 	
 	fcntl(sock, F_SETFL, flag &~ O_NONBLOCK);
 	// 다시 블로킹 모드로 돌아옴.
-	
-STEP2:
-    // 분산 처리 스레드 실행 함수
-    run_thread();
 
+STEP2:
+	// 분산 처리 스레드 실행 함수
+    run_thread();
+	
 STEP3:
 	printf("step 3 start.\n");
 
