@@ -389,7 +389,7 @@ void *sending_thread(void *data) {
 	while (!fin) {
 		if (head < tail) { 
 			
-			long long msg[SIZE*4] 
+			long long msg[SIZE*4];
 			long long l0;
 			for(int i = 0; i < SIZE; i++)
 			{
@@ -399,7 +399,7 @@ void *sending_thread(void *data) {
 					exit(0);
 					break;
 				}
-				msg[i*4] = l0;; // 원본
+				msg[i*4] = l0; // 원본
 				msg[i*4+1] = X(l0);
 				msg[i*4+2] = Y(l0);
 				msg[i*4+3] = Z(l0);
@@ -541,7 +541,7 @@ int actuate(void) {
 }
 
 // 소켓 초기화 함수
-int init_socket(const* char argv1, const* char argv2) { 
+int init_socket(const char* argv1, const char* argv2) { 
 
     sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1) 

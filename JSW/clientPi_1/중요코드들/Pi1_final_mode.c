@@ -37,7 +37,7 @@ static long long mask[24];
 int fin = 0;
 struct sockaddr_in serv_addr;
 
-//에러 함수
+// 에러 함수
 void error_handling(char *message) {
 	fputs(message, stderr);
 	fputc('\n', stderr);
@@ -264,7 +264,7 @@ static int PWMDisable(int pwmnum) {
 int spin(int servo, int val) {
    PWMWriteDutyCycle(servo, val);
    usleep(1000000);
-   PWMWriteDutyCycle(servo, MOTOR_0);
+   PWMWriteDutyCycle(servo, MOTOR_0); // 1450000
    usleep(1000000);
    return 0;
 }
@@ -351,7 +351,7 @@ void *sending_thread(void *data) {
 	while (!fin) {
 		if (head < tail) { 
 			
-			long long msg[SIZE*4] 
+			long long msg[SIZE*4];
 			long long l0;
 			for(int i = 0; i < SIZE; i++)
 			{
@@ -361,7 +361,7 @@ void *sending_thread(void *data) {
 					exit(0);
 					break;
 				}
-				msg[i*4] = l0;; // 원본
+				msg[i*4] = l0; // 원본
 				msg[i*4+1] = X(l0);
 				msg[i*4+2] = Y(l0);
 				msg[i*4+3] = Z(l0);
@@ -489,7 +489,7 @@ int led_breathing() {
 				if (-1 == write(sock, &flag_pi1, sizeof(flag_pi1))) // Pi1 임을 알리기 위한 write
 					error_handling("Server is not receiving your flag_pi1.\n");
 				printf("flag_pi1 : %d\n", flag_pi1);
-				if (-1 == write(sock, &one, sizeof(one))) // 적정 거리임을 알리기 위한 write
+				if (-1 == write(sock, &one, sizeof(one))) // 적정 거리가 아님을 알리기 위한 write
 					error_handling("Server is not receiving your distance.\n");
 				printf("one : %d\n", one);
 				
@@ -508,10 +508,7 @@ int led_breathing() {
 // spin() 함수를 호출해 서보 모터를 90도 회전시키는 함수.
 int actuate(void) {
 	int msg;
-	int sig = 1; // identifier
-
-		  // PWM1 init
-	
+	int sig = 1; 
 	while(1) {
 		read(sock,&msg,sizeof(msg));
 		if(msg==-1) // if step 3 finished
@@ -531,7 +528,7 @@ int actuate(void) {
 }
 
 // 소켓 초기화 함수
-int init_socket(const* char argv1, const* char argv2) { 
+int init_socket(const char* argv1, const char* argv2) { 
 
     sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1) 
