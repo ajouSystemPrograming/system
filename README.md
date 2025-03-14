@@ -1,6 +1,5 @@
 # 분산 처리를 이용한 큐브 솔빙
 ![image](https://github.com/user-attachments/assets/fee089a6-8e79-409a-8ae9-df0d19af3e8d)
-
 ## 목차
 1. 프로젝트 소개
 2. 프로젝트 목표
@@ -26,8 +25,7 @@
 - 본 프로젝트는 4대의 라즈베리파이를 사용하여 2x2x2 루빅스 큐브를 맞춰주는 분산 시스템입니다.
 - 사용자가 초기 큐브의 상태를 카메라로 촬영하면 시스템은 해당 큐브를 맞추기 위한 솔루션을 제시합니다.
 - 3대의 라즈베리파이가 1대의 메인 라즈베리파이와 통신하며 해를 구하는 과정을 분산 처리하여 수행합니다.
-
-![image](https://github.com/user-attachments/assets/8f1d06b5-c37d-484e-ae9f-3d935a10224d)
+<img src="/img/3steps.png" width="50%" height="50%">
 
 # 2. 프로젝트 목표
 - **단일 고성능 CPU&GPU에 의존하는 대신, 여러 대의 저성능 IoT CPU들을 활용**, 연산을 분산 처리하여 계산 속도를 끌어올리는 것이 목표입니다.
@@ -70,8 +68,8 @@
 ## 실행 방법(보고서 및 PPT 참고)
 
 ### 1. 라즈베리파이, 센서 및 에뮬레이터들 배치
-![image](https://github.com/user-attachments/assets/517483af-7692-4987-8b55-575c65277faf)
-![image](https://github.com/user-attachments/assets/c1fdfceb-a67b-4773-ba6e-8b2f652a80b4)
+<img src="/img/scheme.png" width="50%" height="50%">
+<img src="/img/overview.png" width="50%" height="50%">
 
 ### 2. 메인 파이에서 서버 프로그램 컴파일 후 실행
 
@@ -88,13 +86,13 @@ gcc -o serve serve.c -lpthread
 ```
 
 ### 3. 큐브 6면을 순서대로 촬영
-![image](https://github.com/user-attachments/assets/9b3cdaa6-d9c5-4b51-9e88-6e54ef653fc0)
+<img src="/img/sensors_with_points.png" width="50%" height="50%">
 ### 4. 입력된 큐브 상태를 보고 버튼으로 수정
-![image](https://github.com/user-attachments/assets/3bc758bd-af7c-40bc-bb52-bc288dc7af6a)
+<img src="/img/last.png" width="50%" height="50%">
 ### 5. 시스템이 자동으로 큐브를 해결할 때까지 대기
 
 ### 6. 결과에 따라 큐브를 회전시키며 맞춤
-![image](https://github.com/user-attachments/assets/aaca3f5f-8c15-4b7d-9d2f-b3a95bcd10a0)
+<img src="/img/last2.png" width="50%" height="50%">
 
 # 5. 프로젝트 후기
 
