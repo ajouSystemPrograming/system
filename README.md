@@ -1,5 +1,5 @@
 # 분산 처리를 이용한 큐브 솔빙
-![image](https://github.com/user-attachments/assets/fee089a6-8e79-409a-8ae9-df0d19af3e8d)
+<img src="/img/cube.png" width="70%" height="70%">
 ## 목차
 1. 프로젝트 소개
 2. 프로젝트 목표
@@ -25,7 +25,7 @@
 - 본 프로젝트는 4대의 라즈베리파이를 사용하여 2x2x2 루빅스 큐브를 맞춰주는 분산 시스템입니다.
 - 사용자가 초기 큐브의 상태를 카메라로 촬영하면 시스템은 해당 큐브를 맞추기 위한 솔루션을 제시합니다.
 - 3대의 라즈베리파이가 1대의 메인 라즈베리파이와 통신하며 해를 구하는 과정을 분산 처리하여 수행합니다.
-<img src="/img/3steps.png" width="50%" height="50%">
+<img src="/img/3steps.png" width="70%" height="70%">
 
 # 2. 프로젝트 목표
 - **단일 고성능 CPU&GPU에 의존하는 대신, 여러 대의 저성능 IoT CPU들을 활용**, 연산을 분산 처리하여 계산 속도를 끌어올리는 것이 목표입니다.
@@ -68,8 +68,9 @@
 ## 실행 방법(보고서 및 PPT 참고)
 
 ### 1. 라즈베리파이, 센서 및 에뮬레이터들 배치
-<img src="/img/scheme.png" width="50%" height="50%">
-<img src="/img/overview.png" width="50%" height="50%">
+| 스키마 | 실제 사진 |
+| --- | --- |
+| <img src="/img/scheme2.png" width="100%" height="100%"> | <img src="/img/overview.png" width="100%" height="100%"> |
 
 ### 2. 메인 파이에서 서버 프로그램 컴파일 후 실행
 
@@ -86,17 +87,17 @@ gcc -o serve serve.c -lpthread
 ```
 
 ### 3. 큐브 6면을 순서대로 촬영
-<img src="/img/sensors_with_points.png" width="50%" height="50%">
+<img src="/img/sensors_with_points.png" width="33%" height="33%">
+
 ### 4. 입력된 큐브 상태를 보고 버튼으로 수정
-<img src="/img/last.png" width="50%" height="50%">
+<img src="/img/last.png" width="33%" height="33%">
+
 ### 5. 시스템이 자동으로 큐브를 해결할 때까지 대기
 
 ### 6. 결과에 따라 큐브를 회전시키며 맞춤
-<img src="/img/last2.png" width="50%" height="50%">
+<img src="/img/last2.png" width="33%" height="33%">
 
 # 5. 프로젝트 후기
-
----
 
 - 분산 처리 시스템의 설계 및 구현의 실질적인 어려움과 효율성에 대해 깊이 이해하게 되었습니다. ****분산처리 시스템은 이론적으로는 간단해 보이지만 실제 구현에서는 네트워크, 중복처리 등 생각할 것이 많다는 것을 알았습니다.
 - 제한된 자원 내에서 창의적이고 효율적인 대안을 찾는 중요성을 배웠습니다.
@@ -106,8 +107,6 @@ gcc -o serve serve.c -lpthread
 - 개발을 진행하면서 프로젝트 마감 기한에 대한 고려를 했음에도, 투자한 시간 대비 개발의 진척이 꽤 더뎌 다양한 시나리오에 대한 많은 테스트를 진행하지 못했던 것 같습니다. 특히 코드를 짜고 디버깅하는 과정에서, GDB의 활용법을 개발 막바지에 알게 되어 Segmentation Fault와 같은 런타임 에러에 대한 디버깅 과정에 많은 시간이 소요됐는데, 개발 과정에서의 효율성과 생산성의 중요성을 뼈저리게 느꼈습니다.
 
 # 6. 참고 자료
-
----
 
 ## 리눅스 카메라 제어 라이브러리
 
