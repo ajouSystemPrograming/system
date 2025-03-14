@@ -26,8 +26,10 @@
 - 시스템 구조는 유지한 채, ‘큐브 솔빙’만 다른 연산으로 치환하여 딥러닝 등 많은 양의 행렬 연산이 필요한 기술들에 적용 가능합니다.
 
 # 3. 팀원 구성 및 역할 분담
-| 주상우 | https://github.com/cuffyluv |
+
+| 이름 | Github |
 | --- | --- |
+| 주상우 | https://github.com/cuffyluv |
 | 이재혁 | https://github.com/Lee37373 |
 | 임상인 | https://github.com/RaCuNi |
 
